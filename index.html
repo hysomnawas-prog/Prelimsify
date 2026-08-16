@@ -1597,19 +1597,34 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   document.addEventListener('fullscreenchange', function(){
     document.body.classList.toggle('fullscreen-mode', !!document.fullscreenElement);
   });
-  document.addEventListener('keydown', function(e){
+  function handleEscapeExit(e){
     const tag = document.activeElement?.tagName;
-
-    // Esc exits the current test and opens the question-set upload/selection page.
-    // Do not trigger while typing in an input/textarea/select.
     if (e.key === 'Escape' && testStarted && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
       e.preventDefault();
       exitTestToUploadPage();
-      return;
+      return true;
     }
+    return false;
+  }
 
+  document.addEventListener('keydown', function(e){
+    // Normal Escape path.
+    if (handleEscapeExit(e)) return;
+
+    const tag = document.activeElement?.tagName;
     if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
       e.preventDefault(); toggleExamFullscreen();
+    }
+  });
+
+  // Browser fullscreen may consume Escape before the page receives keydown.
+  // In that case, keyup is used as a fallback after fullscreen has closed.
+  document.addEventListener('keyup', function(e){
+    if (e.key !== 'Escape' || !testStarted) return;
+    const tag = document.activeElement?.tagName;
+    if (['INPUT','TEXTAREA','SELECT'].includes(tag)) return;
+    if (!document.fullscreenElement) {
+      exitTestToUploadPage();
     }
   });
 })();
