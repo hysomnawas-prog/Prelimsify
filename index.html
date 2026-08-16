@@ -497,6 +497,16 @@
 
   /* TRUE FULL-MONITOR MODE: native browser fullscreen + every page section fills it. */
   html, body { width:100%; min-width:100%; margin:0; }
+  /* Native fullscreen: the entire website becomes the fullscreen surface. */
+  html:fullscreen, html:fullscreen body {
+    width:100vw !important;
+    min-width:100vw !important;
+    max-width:none !important;
+    height:100vh !important;
+    min-height:100vh !important;
+    margin:0 !important;
+    padding:0 !important;
+  }
   html:fullscreen {
     width:100vw !important;
     height:100vh !important;
@@ -515,12 +525,8 @@
     overflow:hidden !important;
     background:var(--paper) !important;
   }
-  /* Fullscreen applies to the ENTIRE website, regardless of which screen is open. */
-  html:fullscreen > body > *,
   html:fullscreen #homeScreen,
-  html:fullscreen #appShell,
-  html:fullscreen .app-shell,
-  html:fullscreen .home-screen {
+  html:fullscreen #appShell {
     width:100vw !important;
     min-width:100vw !important;
     max-width:none !important;
@@ -569,16 +575,6 @@
   }
   html:fullscreen .scorebar { position:sticky !important; top:0 !important; z-index:20 !important; }
   html:fullscreen .result-overlay { position:fixed !important; inset:0 !important; width:100vw !important; height:100vh !important; }
-  html:fullscreen > body > * {
-    box-sizing:border-box !important;
-  }
-  html:fullscreen .app-shell {
-    min-height:100vh !important;
-  }
-  html:fullscreen .home-screen {
-    min-height:100vh !important;
-  }
-
 
   /* Fallback class mirrors the native fullscreen layout after the browser enters it. */
   html.app-fullscreen,
@@ -1627,14 +1623,18 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
 <script>
 (function(){
-  // F controls native browser fullscreen for the WHOLE WEBSITE on every screen (Home, Upload, Saved Projects, Test, Results).
-  // This is the only web-standard mode that hides tabs/address bar/browser chrome.
-  async function toggleExamFullscreen(){
+  // F controls TRUE browser fullscreen for the ENTIRE WEBSITE.
+  async function toggleSiteFullscreen(){
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-      } else if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen({navigationUI:'hide'});
+        return;
+      }
+      const root = document.documentElement;
+      if (root.requestFullscreen) {
+        await root.requestFullscreen({ navigationUI: 'hide' });
+      } else if (root.webkitRequestFullscreen) {
+        root.webkitRequestFullscreen();
       }
     } catch (err) {
       console.warn('Fullscreen request failed:', err);
@@ -1642,27 +1642,23 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   }
 
   function syncFullscreenLayout(){
-    const on = !!document.fullscreenElement;
-    document.documentElement.classList.toggle('app-fullscreen', on);
-    document.body.classList.toggle('fullscreen-mode', on);
+    const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    document.documentElement.classList.toggle('app-fullscreen', active);
+    document.body.classList.toggle('fullscreen-mode', active);
   }
 
   document.addEventListener('fullscreenchange', syncFullscreenLayout);
   document.addEventListener('webkitfullscreenchange', syncFullscreenLayout);
   syncFullscreenLayout();
 
+  // F works from every website screen, not only while a test is running.
+  // Escape is deliberately left to the browser's native fullscreen behavior.
   document.addEventListener('keydown', function(e){
     const tag = document.activeElement?.tagName;
     const typing = ['INPUT','TEXTAREA','SELECT'].includes(tag);
-    if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !typing) {
+    if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.altKey && !e.metaKey && !typing) {
       e.preventDefault();
-      toggleExamFullscreen();
-      return;
-    }
-    // Esc is handled only when the browser delivers it to the page.
-    if (e.key === 'Escape' && testStarted && !typing) {
-      e.preventDefault();
-      exitTestToUploadPage();
+      toggleSiteFullscreen();
     }
   });
 })();
