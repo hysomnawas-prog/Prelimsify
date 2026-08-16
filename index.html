@@ -495,8 +495,9 @@
     padding:0 20px 30px;
   }
 
-  /* TRUE WHOLE-MONITOR FULLSCREEN: F enters native browser fullscreen for the entire document. */
-  :fullscreen {
+  /* TRUE FULL-MONITOR MODE: native browser fullscreen + every page section fills it. */
+  html, body { width:100%; min-width:100%; margin:0; }
+  html:fullscreen {
     width:100vw !important;
     height:100vh !important;
     margin:0 !important;
@@ -504,7 +505,7 @@
     overflow:hidden !important;
     background:var(--paper) !important;
   }
-  :fullscreen body {
+  html:fullscreen body {
     width:100vw !important;
     min-width:100vw !important;
     height:100vh !important;
@@ -514,76 +515,79 @@
     overflow:hidden !important;
     background:var(--paper) !important;
   }
-  body.fullscreen-mode {
+  /* Fullscreen applies to the ENTIRE website, regardless of which screen is open. */
+  html:fullscreen > body > *,
+  html:fullscreen #homeScreen,
+  html:fullscreen #appShell,
+  html:fullscreen .app-shell,
+  html:fullscreen .home-screen {
     width:100vw !important;
     min-width:100vw !important;
-    height:100vh !important;
-    min-height:100vh !important;
-    margin:0 !important;
-    padding:0 !important;
-    overflow:hidden !important;
-  }
-  body.fullscreen-mode .home-screen,
-  body.fullscreen-mode .app-shell.active {
-    width:100vw !important;
-    min-width:100vw !important;
-    height:100vh !important;
-    min-height:100vh !important;
     max-width:none !important;
-    margin:0 !important;
+    box-sizing:border-box !important;
   }
-  body.fullscreen-mode .home-screen {
-    position:fixed;
-    inset:0;
-    overflow:auto;
+  html:fullscreen #homeScreen {
+    height:100vh !important;
+    min-height:100vh !important;
+    position:fixed !important;
+    inset:0 !important;
+    overflow:auto !important;
   }
-  body.fullscreen-mode .app-shell.active {
-    position:fixed;
-    inset:0;
-    overflow-y:auto;
-    overflow-x:hidden;
-    background:var(--paper);
-    z-index:9999;
+  html:fullscreen #appShell.active {
+    min-height:100vh !important;
+    position:fixed !important;
+    inset:0 !important;
+    width:100vw !important;
+    max-width:none !important;
+    overflow-y:auto !important;
+    overflow-x:hidden !important;
+    background:var(--paper) !important;
+    z-index:999999 !important;
   }
-  body.fullscreen-mode .masthead,
-  body.fullscreen-mode .scorebar,
-  body.fullscreen-mode .progress-track,
-  body.fullscreen-mode .loader-panel,
-  body.fullscreen-mode .container,
-  body.fullscreen-mode .submit-bar,
-  body.fullscreen-mode .footer-note {
+  html:fullscreen .masthead,
+  html:fullscreen .scorebar,
+  html:fullscreen .progress-track,
+  html:fullscreen .loader-panel,
+  html:fullscreen .container,
+  html:fullscreen .submit-bar,
+  html:fullscreen .footer-note {
     width:100% !important;
     max-width:none !important;
-    box-sizing:border-box;
+    box-sizing:border-box !important;
   }
-  body.fullscreen-mode .scorebar {
-    position:sticky;
-    top:0;
-    z-index:20;
+  html:fullscreen .container {
+    border-left:0 !important;
+    border-right:0 !important;
+    padding-left:clamp(24px,4vw,64px) !important;
+    padding-right:clamp(24px,4vw,64px) !important;
   }
-  body.fullscreen-mode .container {
-    border-left:0;
-    border-right:0;
-    padding-left:clamp(24px,4vw,64px);
-    padding-right:clamp(24px,4vw,64px);
+  html:fullscreen .loader-panel,
+  html:fullscreen .submit-bar,
+  html:fullscreen .masthead {
+    padding-left:clamp(24px,4vw,64px) !important;
+    padding-right:clamp(24px,4vw,64px) !important;
   }
-  body.fullscreen-mode .loader-panel,
-  body.fullscreen-mode .submit-bar {
-    border-left:0;
-    border-right:0;
-    padding-left:clamp(24px,4vw,64px);
-    padding-right:clamp(24px,4vw,64px);
+  html:fullscreen .scorebar { position:sticky !important; top:0 !important; z-index:20 !important; }
+  html:fullscreen .result-overlay { position:fixed !important; inset:0 !important; width:100vw !important; height:100vh !important; }
+  html:fullscreen > body > * {
+    box-sizing:border-box !important;
   }
-  body.fullscreen-mode .masthead {
-    width:100%;
-    padding-left:clamp(24px,4vw,64px);
-    padding-right:clamp(24px,4vw,64px);
-    box-sizing:border-box;
+  html:fullscreen .app-shell {
+    min-height:100vh !important;
   }
-  body.fullscreen-mode .result-overlay-inner {
-    max-width:none;
-    width:min(1100px,94vw);
+  html:fullscreen .home-screen {
+    min-height:100vh !important;
   }
+
+
+  /* Fallback class mirrors the native fullscreen layout after the browser enters it. */
+  html.app-fullscreen,
+  html.app-fullscreen body { width:100vw !important; min-width:100vw !important; }
+  html.app-fullscreen body { min-height:100vh !important; margin:0 !important; }
+  body.fullscreen-mode #homeScreen,
+  body.fullscreen-mode #appShell.active { width:100vw !important; min-width:100vw !important; max-width:none !important; }
+  body.fullscreen-mode #homeScreen { min-height:100vh !important; }
+  body.fullscreen-mode #appShell.active { min-height:100vh !important; }
 </style>
 </head>
 <body>
@@ -1623,8 +1627,8 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
 <script>
 (function(){
-  // Native browser fullscreen for the ENTIRE webpage. This hides browser UI
-  // (tabs, address bar, bookmarks) and makes Prelimsify fill the whole display.
+  // F controls native browser fullscreen for the WHOLE WEBSITE on every screen (Home, Upload, Saved Projects, Test, Results).
+  // This is the only web-standard mode that hides tabs/address bar/browser chrome.
   async function toggleExamFullscreen(){
     try {
       if (document.fullscreenElement) {
@@ -1644,20 +1648,18 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   }
 
   document.addEventListener('fullscreenchange', syncFullscreenLayout);
+  document.addEventListener('webkitfullscreenchange', syncFullscreenLayout);
   syncFullscreenLayout();
 
   document.addEventListener('keydown', function(e){
     const tag = document.activeElement?.tagName;
     const typing = ['INPUT','TEXTAREA','SELECT'].includes(tag);
-
     if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !typing) {
       e.preventDefault();
       toggleExamFullscreen();
       return;
     }
-
-    // In native fullscreen, the browser owns Escape and may exit fullscreen
-    // before the page receives it. When delivered to the page, remove the test.
+    // Esc is handled only when the browser delivers it to the page.
     if (e.key === 'Escape' && testStarted && !typing) {
       e.preventDefault();
       exitTestToUploadPage();
