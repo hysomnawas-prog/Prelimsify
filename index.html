@@ -605,7 +605,7 @@
 
 <div class="loader-panel">
   <button class="loader-toggle" onclick="toggleLoader()">Load a question paper ▾</button>
-  <div class="loader-body" id="loaderBody">
+  <div class="loader-body open" id="loaderBody">
     <label for="jsonInput">Paste question JSON</label>
     <textarea id="jsonInput" placeholder='[{"s":"Section title"},{"q":"Question text","o":{"A":"opt A","B":"opt B","C":"opt C","D":"opt D"},"a":"B"}]'></textarea>
     <div class="loader-row">
@@ -668,6 +668,7 @@ D. 1, 2 and 3
   <span class="score">Marks: <span class="num" id="scoreCount">0.00</span>/<span id="maxMarksDisplay">200</span></span>
   <span class="score-actions">
     <button class="btn secondary" id="homeBtn" type="button">Home</button>
+    <button class="btn secondary" id="exitTestBtn" type="button">Exit Test</button>
     <button class="btn secondary" id="resetBtn" type="button">Reset</button>
   </span>
 </div>
@@ -912,13 +913,24 @@ function restoreTestSession(){
   }
 }
 
-function showTest(){
+async function showTest(){
   testStarted = true;
   document.getElementById('homeScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('active');
   window.scrollTo(0, 0);
   clearTestSession();
   buildQuiz(false);
+  // Start Test is a user gesture, so it is safe to request native fullscreen here.
+  // This makes the whole website (including the question-paper loader) use the monitor.
+  try {
+    if (!document.fullscreenElement) {
+      const rootEl = document.documentElement;
+      if (rootEl.requestFullscreen) await rootEl.requestFullscreen({navigationUI:'hide'});
+      else if (rootEl.webkitRequestFullscreen) rootEl.webkitRequestFullscreen();
+    }
+  } catch (err) {
+    console.warn('Could not enter native fullscreen:', err);
+  }
 }
 
 function showHome(){
@@ -1416,7 +1428,7 @@ function buildQuiz(restoreState = false){
     root.innerHTML = `
       <div style="max-width:720px;margin:70px auto;text-align:center;font-family:var(--sans);padding:30px;border:1px solid #bbb;background:#fff;">
         <h2 style="font-family:var(--serif);margin:0 0 10px;">No question paper selected</h2>
-        <p style="margin:0 0 18px;color:var(--ink-soft);font-size:13px;">Open “Load a different question paper” and choose a question set from Saved Projects.</p>
+        <p style="margin:0 0 18px;color:var(--ink-soft);font-size:13px;">Use “Load a question paper ▾” to choose or upload a question set from Saved Projects.</p>
         <button class="btn" type="button" onclick="toggleLoader()">Open Saved Projects</button>
       </div>`;
     return;
@@ -1602,6 +1614,7 @@ function closeResult(){
 // UI controls
 document.getElementById('startTestBtn').addEventListener('click', showTest);
 document.getElementById('homeBtn').addEventListener('click', showHome);
+document.getElementById('exitTestBtn').addEventListener('click', exitTestToUploadPage);
 document.getElementById('resetBtn').addEventListener('click', resetTest);
 document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
@@ -1617,6 +1630,8 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
     document.getElementById('homeScreen').style.display = 'flex';
     document.getElementById('appShell').classList.remove('active');
     buildQuiz(false);
+    const loaderBody = document.getElementById('loaderBody');
+    if (loaderBody) loaderBody.classList.add('open');
   }
 })();
 </script>
