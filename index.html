@@ -1290,6 +1290,9 @@ function buildQuiz(){
 
 
   document.getElementById('submitBar').style.display = 'flex';
+  // A real question paper is loaded, so Submit Paper must be active.
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('resetBtnBottom').disabled = false;
 
   let qNum = 0;
   total = currentData.filter(d => d.q).length;
