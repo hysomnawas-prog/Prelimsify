@@ -495,9 +495,7 @@
     padding:0 20px 30px;
   }
 
-  /* App-level fullscreen mode (no native Fullscreen API).
-     F expands the ENTIRE website content to the viewport.
-     Esc is intentionally handled by the page and never exits this mode. */
+  /* Fullscreen layout: the entire website expands to the native fullscreen viewport. */
   html.app-fullscreen,
   body.fullscreen-mode {
     width:100%;
@@ -508,10 +506,28 @@
     padding:0;
     background:var(--paper);
   }
+  html:fullscreen,
+  html:fullscreen body {
+    width:100%;
+    height:100%;
+    margin:0;
+    padding:0;
+    overflow:hidden;
+  }
   body.fullscreen-mode {
     position:fixed;
     inset:0;
+    width:100vw;
+    height:100vh;
     overflow:hidden;
+  }
+  body.fullscreen-mode .home-screen {
+    position:fixed;
+    inset:0;
+    width:100vw;
+    height:100vh;
+    min-height:100vh;
+    overflow:auto;
   }
   body.fullscreen-mode .app-shell.active {
     position:fixed;
@@ -1613,37 +1629,46 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
 <script>
 (function(){
-  // Use app-level fullscreen styling instead of the browser's native
-  // Fullscreen API. Native fullscreen reserves Escape for the browser,
-  // which would make Escape a two-step action. Here F controls fullscreen
-  // and Escape remains fully available to remove the test immediately.
-  function toggleExamFullscreen(){
-    document.body.classList.toggle('fullscreen-mode');
-    document.documentElement.classList.toggle('app-fullscreen', document.body.classList.contains('fullscreen-mode'));
-  }
-  function handleEscapeExit(e){
-    const tag = document.activeElement?.tagName;
-    if (e.key === 'Escape' && testStarted && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
-      e.preventDefault();
-      exitTestToUploadPage();
-      return true;
+  // Native browser fullscreen for the ENTIRE webpage. This hides browser UI
+  // (tabs, address bar, bookmarks) and makes Prelimsify fill the whole display.
+  async function toggleExamFullscreen(){
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.warn('Fullscreen request failed:', err);
     }
-    return false;
   }
+
+  function syncFullscreenLayout(){
+    const on = !!document.fullscreenElement;
+    document.documentElement.classList.toggle('app-fullscreen', on);
+    document.body.classList.toggle('fullscreen-mode', on);
+  }
+
+  document.addEventListener('fullscreenchange', syncFullscreenLayout);
+  syncFullscreenLayout();
 
   document.addEventListener('keydown', function(e){
-    // Normal Escape path.
-    if (handleEscapeExit(e)) return;
-
     const tag = document.activeElement?.tagName;
-    if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
-      e.preventDefault(); toggleExamFullscreen();
+    const typing = ['INPUT','TEXTAREA','SELECT'].includes(tag);
+
+    if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !typing) {
+      e.preventDefault();
+      toggleExamFullscreen();
+      return;
+    }
+
+    // In native fullscreen, the browser owns Escape and may exit fullscreen
+    // before the page receives it. When delivered to the page, remove the test.
+    if (e.key === 'Escape' && testStarted && !typing) {
+      e.preventDefault();
+      exitTestToUploadPage();
     }
   });
-
-  // Do not use Escape to exit fullscreen. Escape only removes the test.
-  // The browser may reserve Escape while in native fullscreen; there is no
-  // page-level API that can force-cancel that browser-reserved behavior.
 })();
 </script>
 </body>
