@@ -409,6 +409,10 @@
     </div>
     <div class="loader-msg" id="loaderMsg"></div>
     <div class="loader-hint">
+      <strong>Cloud saving:</strong> this version uses Supabase instead of the artifact-only <code>window.storage</code>.
+      Your loaded paper is saved to your own anonymous Supabase user record.
+    </div>
+    <div class="loader-hint">
       Format: an array of objects. A section heading is <code>{"s":"Heading text"}</code>.
       A question is <code>{"q":"...","o":{"A":"...","B":"...","C":"...","D":"..."},"a":"B"}</code>
       where <code>a</code> is the correct letter. You can upload a <code>.json</code> file with this
@@ -451,7 +455,21 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ============================================================
+   SUPABASE CONFIG
+   Replace ONLY these two values.
+   Use the Project URL and the Publishable key from Supabase.
+   NEVER put a secret/service_role key in this file.
+   ============================================================ */
+const SUPABASE_URL = "https://fzwsmvwvraruktyyiscr.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_";
+
+const SUPABASE_TABLE = "quiz_papers";
+let supabaseClient = null;
+let supabaseUser = null;
+
 const DEFAULT_DATA = [
 {s:"SECTION A — ANCIENT HISTORY & ART/CULTURE"},
 {q:"With reference to the Second Urbanisation in the Indian subcontinent, consider the following statements:\n1. The emergence of urban centres was associated with the expansion of craft production.\n2. The use of punch-marked coins is associated with this period.\n3. The emergence of cities was confined exclusively to the Gangetic plains.\nWhich of the statements given above is/are correct?",o:{A:"1 and 2 only",B:"2 only",C:"1 and 3 only",D:"1, 2 and 3"},a:"A"},
@@ -675,10 +693,56 @@ function loadDefault(){
   });
 }
 
-// ---- persistence (window.storage, personal to this user) ----
-const STORAGE_KEY = 'current-paper';
+// ---- Supabase persistence ----
+async function initSupabase(){
+  if (!SUPABASE_URL || SUPABASE_URL.includes("YOUR_SUPABASE") ||
+      !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes("YOUR_SUPABASE")){
+    setLoaderMsg('Supabase is not configured yet. Put your Project URL and Publishable key near the top of this file.', false);
+    return false;
+  }
+
+  try{
+    supabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      }
+    );
+
+    const { data: sessionData, error: sessionError } =
+      await supabaseClient.auth.getSession();
+
+    if (sessionError) throw sessionError;
+
+    if (sessionData && sessionData.session){
+      supabaseUser = sessionData.session.user;
+      return true;
+    }
+
+    // Anonymous Auth gives each browser its own authenticated user.
+    // This lets RLS safely limit rows to that user.
+    const { data, error } = await supabaseClient.auth.signInAnonymously();
+    if (error) throw error;
+
+    supabaseUser = data.user;
+    return !!supabaseUser;
+  }catch(e){
+    console.error('Supabase initialization failed:', e);
+    setLoaderMsg('Supabase connection failed: ' + (e.message || e), false);
+    return false;
+  }
+}
 
 async function savePaper(timeLimitMins){
+  if (!supabaseClient || !supabaseUser){
+    throw new Error('Supabase is not connected.');
+  }
+
   const payload = {
     data: currentData,
     markCorrect: MARK_CORRECT,
@@ -686,37 +750,63 @@ async function savePaper(timeLimitMins){
     passMark: PASS_MARK,
     timeLimitMins: timeLimitMins
   };
-  const result = await window.storage.set(STORAGE_KEY, JSON.stringify(payload), false);
-  if (!result) throw new Error('storage set failed');
-  return result;
+
+  const { error } = await supabaseClient
+    .from(SUPABASE_TABLE)
+    .upsert({
+      user_id: supabaseUser.id,
+      paper: payload,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+
+  if (error) throw error;
+  return true;
 }
 
 async function clearSavedPaper(){
-  try{
-    await window.storage.delete(STORAGE_KEY, false);
-  }catch(e){
-    // nothing was saved, or delete failed — safe to ignore
-  }
+  if (!supabaseClient || !supabaseUser) return;
+
+  const { error } = await supabaseClient
+    .from(SUPABASE_TABLE)
+    .delete()
+    .eq('user_id', supabaseUser.id);
+
+  if (error) throw error;
 }
 
 async function loadSavedPaperOnStartup(){
+  if (!supabaseClient || !supabaseUser) return false;
+
   try{
-    const result = await window.storage.get(STORAGE_KEY, false);
-    if (!result || !result.value) return false;
-    const payload = JSON.parse(result.value);
+    const { data, error } = await supabaseClient
+      .from(SUPABASE_TABLE)
+      .select('paper')
+      .eq('user_id', supabaseUser.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data || !data.paper) return false;
+
+    const payload = data.paper;
     validateData(payload.data);
+
     currentData = payload.data;
     MARK_CORRECT = payload.markCorrect ?? 2;
     MARK_WRONG = payload.markWrong ?? -0.66;
     PASS_MARK = payload.passMark ?? 120;
+
     const mins = payload.timeLimitMins ?? 120;
     remaining = Math.round(mins * 60);
+
     document.getElementById('timeLimitInput').value = mins;
     document.getElementById('markCorrectInput').value = MARK_CORRECT;
     document.getElementById('markWrongInput').value = MARK_WRONG;
     document.getElementById('passMarkInput').value = PASS_MARK;
+
     return true;
   }catch(e){
+    console.error('Could not restore saved paper:', e);
+    setLoaderMsg('Could not restore saved paper: ' + (e.message || e), false);
     return false;
   }
 }
@@ -896,10 +986,17 @@ function closeResult(){
 
 // init
 (async function init(){
-  const restored = await loadSavedPaperOnStartup();
   buildQuiz();
+
+  const connected = await initSupabase();
+  if (!connected) return;
+
+  const restored = await loadSavedPaperOnStartup();
   if (restored){
-    setLoaderMsg('Restored your previously saved question paper.', true);
+    buildQuiz();
+    setLoaderMsg('Restored your previously saved question paper from Supabase.', true);
+  } else {
+    setLoaderMsg('Connected to Supabase. Loaded paper will be saved there.', true);
   }
 })();
 </script>
