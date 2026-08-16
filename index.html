@@ -1367,6 +1367,9 @@ function buildQuiz(restoreState = false){
   document.getElementById('submitBtn').textContent = 'Submit Paper';
 
   if (!Array.isArray(currentData) || !currentData.some(item => item.q)){
+    // No active test: hide all test-only UI and leave only the question-set loader.
+    const scorebar = document.querySelector('.scorebar');
+    if (scorebar) scorebar.style.display = 'none';
     document.getElementById('totalCount').textContent = '0';
     document.getElementById('maxMarksDisplay').textContent = '0';
     document.getElementById('scoreCount').textContent = '0.00';
@@ -1382,6 +1385,8 @@ function buildQuiz(restoreState = false){
   }
 
 
+  const scorebar = document.querySelector('.scorebar');
+  if (scorebar) scorebar.style.display = 'flex';
   document.getElementById('submitBar').style.display = 'flex';
   // A real question paper is loaded, so Submit Paper must be active.
   document.getElementById('submitBtn').disabled = false;
