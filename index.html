@@ -377,13 +377,42 @@
     padding:0 20px 30px;
   }
 
-  /* Full-screen exam mode */
+  /* Full-screen exam mode: make the actual question paper span the viewport */
+  body.fullscreen-mode {
+    background:var(--paper);
+    width:100%;
+    min-height:100vh;
+  }
+  body.fullscreen-mode .masthead {
+    padding-top:12px;
+    width:100%;
+  }
   body.fullscreen-mode .loader-panel,
-  body.fullscreen-mode .quiz-wrap,
-  body.fullscreen-mode .result-overlay-inner { max-width:none; width:100%; }
-  body.fullscreen-mode .quiz-wrap { margin-left:0; margin-right:0; }
-  body.fullscreen-mode { background:var(--paper); }
-  body.fullscreen-mode .masthead { padding-top:12px; }
+  body.fullscreen-mode .container,
+  body.fullscreen-mode .submit-bar {
+    max-width:none;
+    width:100%;
+    margin-left:0;
+    margin-right:0;
+    border-left:0;
+    border-right:0;
+  }
+  body.fullscreen-mode .container {
+    padding-left:40px;
+    padding-right:40px;
+  }
+  body.fullscreen-mode .loader-panel {
+    padding-left:40px;
+    padding-right:40px;
+  }
+  body.fullscreen-mode .submit-bar {
+    padding-left:40px;
+    padding-right:40px;
+  }
+  body.fullscreen-mode .result-overlay-inner {
+    max-width:none;
+    width:min(900px, 94vw);
+  }
 </style>
 </head>
 <body>
