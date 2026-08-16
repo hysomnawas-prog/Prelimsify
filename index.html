@@ -536,14 +536,13 @@
 </div>
 
 <div class="loader-panel">
-  <button class="loader-toggle" onclick="toggleLoader()">Load a different question paper ▾</button>
+  <button class="loader-toggle" onclick="toggleLoader()">Load a question paper ▾</button>
   <div class="loader-body" id="loaderBody">
     <label for="jsonInput">Paste question JSON</label>
     <textarea id="jsonInput" placeholder='[{"s":"Section title"},{"q":"Question text","o":{"A":"opt A","B":"opt B","C":"opt C","D":"opt D"},"a":"B"}]'></textarea>
     <div class="loader-row">
       <input type="file" id="fileInput" accept=".json,application/json">
       <button class="btn" onclick="loadFromTextarea()">Load Paper</button>
-      <button class="btn secondary" onclick="loadDefault()">Reset to default paper</button>
     </div>
     <div class="loader-row">
       <label style="font-weight:400;">Time limit (minutes):</label>
@@ -620,7 +619,6 @@
 const SUPABASE_URL = "https://fzwsmvwvraruktyyiscr.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_";
 
-const SUPABASE_TABLE = "quiz_papers";
 const SAVED_PROJECTS_TABLE = "quiz_projects";
 let supabaseClient = null;
 let supabaseUser = null;
@@ -746,7 +744,7 @@ const DEFAULT_DATA = [
 ];
 
 // ---- state ----
-let currentData = DEFAULT_DATA;
+let currentData = [];
 let answered = 0;
 let correctCount = 0;
 let wrongCount = 0;
@@ -826,9 +824,47 @@ async function loadSavedProjects(){
   }
 }
 
+function makeProjectPaper(){
+  return {
+    source: 'prelimsify-default-v1',
+    title: document.getElementById('titleText')?.textContent || 'Question Set',
+    questions: currentData,
+    markCorrect: MARK_CORRECT,
+    markWrong: MARK_WRONG,
+    passMark: PASS_MARK,
+    timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120)
+  };
+}
+
+function applyProjectPaper(projectPaper){
+  const payload = Array.isArray(projectPaper)
+    ? { questions: projectPaper }
+    : (projectPaper || {});
+
+  const questions = payload.questions || payload.data;
+  if (!Array.isArray(questions)) throw new Error('Saved project has no valid question set.');
+  validateData(questions);
+
+  currentData = questions;
+  MARK_CORRECT = Number(payload.markCorrect ?? 2);
+  MARK_WRONG = Number(payload.markWrong ?? -0.66);
+  PASS_MARK = Number(payload.passMark ?? 120);
+
+  const mins = Number(payload.timeLimitMins ?? 120);
+  remaining = Math.round(Math.max(1, mins) * 60);
+  document.getElementById('timeLimitInput').value = Math.max(1, mins);
+  document.getElementById('markCorrectInput').value = MARK_CORRECT;
+  document.getElementById('markWrongInput').value = MARK_WRONG;
+  document.getElementById('passMarkInput').value = PASS_MARK;
+}
+
 async function saveCurrentQuestionSet(){
   if (!supabaseClient || !supabaseUser){
     setLoaderMsg('Supabase is not connected. Try again after the connection is restored.', false);
+    return;
+  }
+  if (!Array.isArray(currentData) || !currentData.some(item => item.q)){
+    setLoaderMsg('There is no question set loaded to save.', false);
     return;
   }
 
@@ -843,13 +879,14 @@ async function saveCurrentQuestionSet(){
     if (latestError) throw latestError;
 
     const nextProject = latest && latest.length ? Number(latest[0].project_number) + 1 : 1;
+    const projectPaper = makeProjectPaper();
 
     const { data, error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
       .insert({
         user_id: supabaseUser.id,
         project_number: nextProject,
-        paper: paper,
+        paper: projectPaper,
         saved_at: new Date().toISOString()
       })
       .select('id,user_id,project_number,paper,saved_at')
@@ -907,14 +944,19 @@ function renderSavedProjects(){
 
     const name = document.createElement('div');
     name.className = 'saved-question';
-    name.textContent = `Project ${row.project_number}`;
+    const title = row.paper?.title || `Project ${row.project_number}`;
+    name.textContent = `Project ${row.project_number} — ${title}`;
     name.title = 'Load this question set';
     name.onclick = () => {
-      paper = row.paper;
-      buildQuiz();
-      closeLoaderIfOpen();
-      window.scrollTo({top:0, behavior:'smooth'});
-      setLoaderMsg(`Loaded Project ${row.project_number}.`, true);
+      try{
+        applyProjectPaper(row.paper);
+        buildQuiz();
+        closeLoaderIfOpen();
+        window.scrollTo({top:0, behavior:'smooth'});
+        setLoaderMsg(`Loaded Project ${row.project_number}.`, true);
+      }catch(e){
+        setLoaderMsg(`Could not load Project ${row.project_number}: ${e.message || e}`, false);
+      }
     };
 
     const del = document.createElement('button');
@@ -974,6 +1016,7 @@ function validateData(arr){
 function loadFromTextarea(){
   const raw = document.getElementById('jsonInput').value.trim();
   if (!raw){ setLoaderMsg('Paste or upload a question set first.', false); return; }
+
   let parsed;
   try{
     parsed = JSON.parse(raw);
@@ -982,44 +1025,21 @@ function loadFromTextarea(){
     setLoaderMsg('Could not load: ' + err.message, false);
     return;
   }
+
   const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
   const mc = parseFloat(document.getElementById('markCorrectInput').value);
   const mw = parseFloat(document.getElementById('markWrongInput').value);
   const pm = parseFloat(document.getElementById('passMarkInput').value);
+
   MARK_CORRECT = isNaN(mc) ? 2 : mc;
   MARK_WRONG = isNaN(mw) ? -0.66 : mw;
   PASS_MARK = isNaN(pm) ? 120 : pm;
   remaining = Math.round(mins * 60);
   currentData = parsed;
-  const qCount = validateData(parsed);
   buildQuiz();
-  savePaper(mins).then(ok => {
-    setLoaderMsg('Paper loaded and saved — ' + qCount + ' questions. It will load automatically next time.', true);
-  }).catch(() => {
-    setLoaderMsg('Paper loaded (' + qCount + ' questions), but saving failed — it may not persist next time.', true);
-  });
+  setLoaderMsg('Paper loaded. Click "Save Current Question Set" if you want to keep it in Saved Projects.', true);
 }
 
-function loadDefault(){
-  currentData = DEFAULT_DATA;
-  MARK_CORRECT = 2;
-  MARK_WRONG = -0.66;
-  PASS_MARK = 120;
-  remaining = 120 * 60;
-  document.getElementById('timeLimitInput').value = 120;
-  document.getElementById('markCorrectInput').value = 2;
-  document.getElementById('markWrongInput').value = -0.66;
-  document.getElementById('passMarkInput').value = 120;
-  document.getElementById('jsonInput').value = '';
-  buildQuiz();
-  clearSavedPaper().then(() => {
-    setLoaderMsg('Default paper restored and saved paper cleared.', true);
-  }).catch(() => {
-    setLoaderMsg('Default paper restored.', true);
-  });
-}
-
-// ---- Supabase persistence ----
 async function initSupabase(){
   if (!SUPABASE_URL || SUPABASE_URL.includes("YOUR_SUPABASE") ||
       !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes("YOUR_SUPABASE")){
@@ -1050,8 +1070,6 @@ async function initSupabase(){
       return true;
     }
 
-    // Anonymous Auth gives each browser its own authenticated user.
-    // This lets RLS safely limit rows to that user.
     const { data, error } = await supabaseClient.auth.signInAnonymously();
     if (error) throw error;
 
@@ -1064,76 +1082,72 @@ async function initSupabase(){
   }
 }
 
-async function savePaper(timeLimitMins){
-  if (!supabaseClient || !supabaseUser){
-    throw new Error('Supabase is not connected.');
-  }
-
-  const payload = {
-    data: currentData,
-    markCorrect: MARK_CORRECT,
-    markWrong: MARK_WRONG,
-    passMark: PASS_MARK,
-    timeLimitMins: timeLimitMins
-  };
-
-  const { error } = await supabaseClient
-    .from(SUPABASE_TABLE)
-    .upsert({
-      user_id: supabaseUser.id,
-      paper: payload,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
-
-  if (error) throw error;
-  return true;
-}
-
-async function clearSavedPaper(){
+async function moveBuiltInPaperToSavedProjects(){
   if (!supabaseClient || !supabaseUser) return;
 
-  const { error } = await supabaseClient
-    .from(SUPABASE_TABLE)
-    .delete()
-    .eq('user_id', supabaseUser.id);
-
-  if (error) throw error;
-}
-
-async function loadSavedPaperOnStartup(){
-  if (!supabaseClient || !supabaseUser) return false;
-
   try{
-    const { data, error } = await supabaseClient
-      .from(SUPABASE_TABLE)
+    const defaultQuestions = DEFAULT_DATA;
+    const defaultSource = 'prelimsify-default-v1';
+
+    // If the built-in paper is already present, do not create a duplicate.
+    const { data: projects, error: projectError } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .select('id,project_number,paper')
+      .eq('user_id', supabaseUser.id)
+      .order('project_number', { ascending:true });
+
+    if (projectError) throw projectError;
+
+    const alreadySaved = (projects || []).some(row => row.paper?.source === defaultSource);
+
+    if (!alreadySaved){
+      const rows = projects || [];
+      const nextProject = rows.length
+        ? Math.max(...rows.map(row => Number(row.project_number) || 0)) + 1
+        : 1;
+
+      const { error } = await supabaseClient
+        .from(SAVED_PROJECTS_TABLE)
+        .insert({
+          user_id: supabaseUser.id,
+          project_number: nextProject,
+          paper: {
+            source: defaultSource,
+            title: 'UPSC CSE Prelims 2027 — Default Paper',
+            questions: defaultQuestions,
+            markCorrect: 2,
+            markWrong: -0.66,
+            passMark: 120,
+            timeLimitMins: 120
+          },
+          saved_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+    }
+
+    // Stop treating quiz_papers as the active/default paper. If it contains
+    // the same built-in data, remove only that built-in copy. Custom data is left untouched.
+    const { data: activePaper, error: activeError } = await supabaseClient
+      .from('quiz_papers')
       .select('paper')
       .eq('user_id', supabaseUser.id)
       .maybeSingle();
 
-    if (error) throw error;
-    if (!data || !data.paper) return false;
+    if (activeError) throw activeError;
 
-    const payload = data.paper;
-    validateData(payload.data);
+    if (activePaper?.paper?.data && JSON.stringify(activePaper.paper.data) === JSON.stringify(defaultQuestions)){
+      await supabaseClient
+        .from('quiz_papers')
+        .delete()
+        .eq('user_id', supabaseUser.id);
+    }
 
-    currentData = payload.data;
-    MARK_CORRECT = payload.markCorrect ?? 2;
-    MARK_WRONG = payload.markWrong ?? -0.66;
-    PASS_MARK = payload.passMark ?? 120;
-
-    const mins = payload.timeLimitMins ?? 120;
-    remaining = Math.round(mins * 60);
-
-    document.getElementById('timeLimitInput').value = mins;
-    document.getElementById('markCorrectInput').value = MARK_CORRECT;
-    document.getElementById('markWrongInput').value = MARK_WRONG;
-    document.getElementById('passMarkInput').value = PASS_MARK;
-
-    return true;
+    await loadSavedProjects();
+    setLoaderMsg('Default question set moved to Saved Projects. Select it there to start.', true);
   }catch(e){
-    console.error('Could not restore saved paper:', e);
-    setLoaderMsg('Could not restore saved paper: ' + (e.message || e), false);
-    return false;
+    console.error('Could not move default paper to Saved Projects:', e);
+    setLoaderMsg('Could not move the default paper to Saved Projects: ' + (e.message || e), false);
   }
 }
 
@@ -1148,8 +1162,24 @@ function buildQuiz(){
   root.innerHTML = '';
   document.getElementById('timesUpBanner').style.display = 'none';
   document.getElementById('resultOverlay').classList.remove('open');
-  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').disabled = true;
   document.getElementById('submitBtn').textContent = 'Submit Paper';
+
+  if (!Array.isArray(currentData) || !currentData.some(item => item.q)){
+    document.getElementById('totalCount').textContent = '0';
+    document.getElementById('maxMarksDisplay').textContent = '0';
+    document.getElementById('scoreCount').textContent = '0.00';
+    document.getElementById('answeredCount').textContent = '0';
+    document.getElementById('progressFill').style.width = '0%';
+    root.innerHTML = `
+      <div style="max-width:720px;margin:70px auto;text-align:center;font-family:var(--sans);padding:30px;border:1px solid #bbb;background:#fff;">
+        <h2 style="font-family:var(--serif);margin:0 0 10px;">No question paper selected</h2>
+        <p style="margin:0 0 18px;color:var(--ink-soft);font-size:13px;">Open “Load a different question paper” and choose a question set from Saved Projects.</p>
+        <button class="btn" type="button" onclick="toggleLoader()">Open Saved Projects</button>
+      </div>`;
+    return;
+  }
+
 
   let qNum = 0;
   total = currentData.filter(d => d.q).length;
@@ -1321,14 +1351,9 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   const connected = await initSupabase();
   if (!connected) return;
 
-  await loadSavedProjects();
-
-  const restored = await loadSavedPaperOnStartup();
-  if (restored){
-    setLoaderMsg('Restored your previously saved question paper from Supabase.', true);
-  } else {
-    setLoaderMsg('Connected to Supabase. Loaded paper will be saved there.', true);
-  }
+  await moveBuiltInPaperToSavedProjects();
+  currentData = [];
+  buildQuiz();
 })();
 </script>
 
