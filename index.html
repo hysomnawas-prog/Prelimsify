@@ -412,7 +412,8 @@
       Format: an array of objects. A section heading is <code>{"s":"Heading text"}</code>.
       A question is <code>{"q":"...","o":{"A":"...","B":"...","C":"...","D":"..."},"a":"B"}</code>
       where <code>a</code> is the correct letter. You can upload a <code>.json</code> file with this
-      same structure instead of pasting it.
+      same structure instead of pasting it. Once loaded, the paper is saved automatically and will
+      reopen the next time you use this artifact — click "Reset to default paper" to clear it.
     </div>
   </div>
 </div>
@@ -646,8 +647,13 @@ function loadFromTextarea(){
   PASS_MARK = isNaN(pm) ? 120 : pm;
   remaining = Math.round(mins * 60);
   currentData = parsed;
-  setLoaderMsg('Paper loaded — ' + validateData(parsed) + ' questions.', true);
+  const qCount = validateData(parsed);
   buildQuiz();
+  savePaper(mins).then(ok => {
+    setLoaderMsg('Paper loaded and saved — ' + qCount + ' questions. It will load automatically next time.', true);
+  }).catch(() => {
+    setLoaderMsg('Paper loaded (' + qCount + ' questions), but saving failed — it may not persist next time.', true);
+  });
 }
 
 function loadDefault(){
@@ -661,8 +667,58 @@ function loadDefault(){
   document.getElementById('markWrongInput').value = -0.66;
   document.getElementById('passMarkInput').value = 120;
   document.getElementById('jsonInput').value = '';
-  setLoaderMsg('Default paper restored.', true);
   buildQuiz();
+  clearSavedPaper().then(() => {
+    setLoaderMsg('Default paper restored and saved paper cleared.', true);
+  }).catch(() => {
+    setLoaderMsg('Default paper restored.', true);
+  });
+}
+
+// ---- persistence (window.storage, personal to this user) ----
+const STORAGE_KEY = 'current-paper';
+
+async function savePaper(timeLimitMins){
+  const payload = {
+    data: currentData,
+    markCorrect: MARK_CORRECT,
+    markWrong: MARK_WRONG,
+    passMark: PASS_MARK,
+    timeLimitMins: timeLimitMins
+  };
+  const result = await window.storage.set(STORAGE_KEY, JSON.stringify(payload), false);
+  if (!result) throw new Error('storage set failed');
+  return result;
+}
+
+async function clearSavedPaper(){
+  try{
+    await window.storage.delete(STORAGE_KEY, false);
+  }catch(e){
+    // nothing was saved, or delete failed — safe to ignore
+  }
+}
+
+async function loadSavedPaperOnStartup(){
+  try{
+    const result = await window.storage.get(STORAGE_KEY, false);
+    if (!result || !result.value) return false;
+    const payload = JSON.parse(result.value);
+    validateData(payload.data);
+    currentData = payload.data;
+    MARK_CORRECT = payload.markCorrect ?? 2;
+    MARK_WRONG = payload.markWrong ?? -0.66;
+    PASS_MARK = payload.passMark ?? 120;
+    const mins = payload.timeLimitMins ?? 120;
+    remaining = Math.round(mins * 60);
+    document.getElementById('timeLimitInput').value = mins;
+    document.getElementById('markCorrectInput').value = MARK_CORRECT;
+    document.getElementById('markWrongInput').value = MARK_WRONG;
+    document.getElementById('passMarkInput').value = PASS_MARK;
+    return true;
+  }catch(e){
+    return false;
+  }
 }
 
 function buildQuiz(){
@@ -839,7 +895,13 @@ function closeResult(){
 }
 
 // init
-buildQuiz();
+(async function init(){
+  const restored = await loadSavedPaperOnStartup();
+  buildQuiz();
+  if (restored){
+    setLoaderMsg('Restored your previously saved question paper.', true);
+  }
+})();
 </script>
 </body>
 </html>
