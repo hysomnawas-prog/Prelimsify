@@ -804,23 +804,115 @@ let timerInterval = null;
 let remaining = 120 * 60;
 let savedProjects = [];
 let testStarted = false;
+const SESSION_KEY = 'prelimsify_active_test_v1';
+let restoringSession = false;
+let restoredAnswers = {};
+
+function saveTestSession(){
+  if (!testStarted || submitted || !Array.isArray(currentData) || !currentData.some(item => item.q)) return;
+  const answers = {};
+  document.querySelectorAll('.qcard').forEach((card, idx) => {
+    const picked = card.querySelector('.opt[data-picked="1"]');
+    if (picked) answers[idx + 1] = picked.dataset.letter;
+  });
+  try{
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+      active: true,
+      currentData,
+      markCorrect: MARK_CORRECT,
+      markWrong: MARK_WRONG,
+      passMark: PASS_MARK,
+      remaining,
+      answers,
+      timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120),
+      savedAt: Date.now()
+    }));
+  }catch(e){ console.warn('Could not save test session:', e); }
+}
+
+function clearTestSession(){
+  try{ sessionStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+
+function restoreTestSession(){
+  try{
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return false;
+    const state = JSON.parse(raw);
+    if (!state || !state.active || !Array.isArray(state.currentData) || !state.currentData.some(item => item.q)) return false;
+    validateData(state.currentData);
+    currentData = state.currentData;
+    MARK_CORRECT = Number(state.markCorrect ?? 2);
+    MARK_WRONG = Number(state.markWrong ?? -0.66);
+    PASS_MARK = Number(state.passMark ?? 120);
+    remaining = Math.max(0, Number(state.remaining) || 0);
+    restoredAnswers = state.answers || {};
+    restoringSession = true;
+    testStarted = true;
+    document.getElementById('homeScreen').style.display = 'none';
+    document.getElementById('appShell').classList.add('active');
+    document.getElementById('timeLimitInput').value = Math.max(1, Number(state.timeLimitMins) || 120);
+    document.getElementById('markCorrectInput').value = MARK_CORRECT;
+    document.getElementById('markWrongInput').value = MARK_WRONG;
+    document.getElementById('passMarkInput').value = PASS_MARK;
+    buildQuiz(true);
+    restoringSession = false;
+    restoredAnswers = {};
+    return true;
+  }catch(e){
+    console.warn('Could not restore test session:', e);
+    clearTestSession();
+    restoringSession = false;
+    restoredAnswers = {};
+    return false;
+  }
+}
 
 function showTest(){
   testStarted = true;
   document.getElementById('homeScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('active');
   window.scrollTo(0, 0);
-  buildQuiz();
+  clearTestSession();
+  buildQuiz(false);
 }
 
 function showHome(){
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
   testStarted = false;
+  clearTestSession();
   document.getElementById('appShell').classList.remove('active');
   document.getElementById('homeScreen').style.display = 'flex';
   document.getElementById('resultOverlay').classList.remove('open');
   window.scrollTo(0, 0);
+}
+
+function exitTestToUploadPage(){
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  testStarted = false;
+  submitted = false;
+  timeUp = false;
+  clearTestSession();
+
+  // Exit browser fullscreen as well, if the exam was in fullscreen mode.
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(()=>{});
+  }
+  document.body.classList.remove('fullscreen-mode');
+
+  currentData = [];
+  document.getElementById('homeScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('active');
+  document.getElementById('resultOverlay').classList.remove('open');
+  buildQuiz(false);
+
+  // Open the question-paper upload/selection panel immediately.
+  const loaderBody = document.getElementById('loaderBody');
+  if (loaderBody) loaderBody.classList.add('open');
+  window.scrollTo({top:0, behavior:'smooth'});
+  setLoaderMsg('Test exited. Choose or upload a question set to start a new test.', true);
 }
 
 function resetTest(){
@@ -834,7 +926,8 @@ function resetTest(){
   remaining = Math.round(mins * 60);
   timeUp = false;
   submitted = false;
-  buildQuiz();
+  clearTestSession();
+  buildQuiz(false);
   window.scrollTo(0, 0);
 }
 
@@ -1258,7 +1351,7 @@ async function moveBuiltInPaperToSavedProjects(){
   }
 }
 
-function buildQuiz(){
+function buildQuiz(restoreState = false){
   if (timerInterval) clearInterval(timerInterval);
   timeUp = false;
   submitted = false;
@@ -1296,6 +1389,7 @@ function buildQuiz(){
 
   let qNum = 0;
   total = currentData.filter(d => d.q).length;
+  if (!restoreState) restoredAnswers = {};
   const maxMarks = total * MARK_CORRECT;
   document.getElementById('totalCount').textContent = total;
   document.getElementById('maxMarksDisplay').textContent = maxMarks;
@@ -1362,9 +1456,15 @@ function buildQuiz(){
           fb.className = 'feedback wrong';
         }
         updateScore();
+        if (!restoringSession) saveTestSession();
       };
       optsWrap.appendChild(btn);
     });
+
+    if (restoreState && restoredAnswers[qNum]) {
+      const picked = optsWrap.querySelector(`.opt[data-letter=\"${restoredAnswers[qNum]}\"]`);
+      if (picked && typeof picked.onclick === 'function') picked.onclick();
+    }
 
     card.appendChild(optsWrap);
     card.appendChild(fb);
@@ -1392,6 +1492,7 @@ function startTimer(){
   const timerEl = document.getElementById('timerDisplay');
   timerEl.classList.remove('low');
   timerEl.textContent = formatTime(remaining);
+  saveTestSession();
   timerInterval = setInterval(() => {
     remaining--;
     if (remaining <= 0){
@@ -1403,6 +1504,7 @@ function startTimer(){
       return;
     }
     timerEl.textContent = formatTime(remaining);
+    saveTestSession();
     if (remaining <= 300){ timerEl.classList.add('low'); }
   }, 1000);
 }
@@ -1417,6 +1519,7 @@ function lockPaper(){
 function submitPaper(){
   if (submitted) return;
   submitted = true;
+  clearTestSession();
   if (timerInterval) clearInterval(timerInterval);
   document.querySelectorAll('.opt:not(.locked)').forEach(o => o.classList.add('locked','dim'));
   document.getElementById('submitBtn').textContent = 'Submitted';
@@ -1465,8 +1568,13 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   if (!connected) return;
 
   await moveBuiltInPaperToSavedProjects();
-  currentData = [];
-  buildQuiz();
+  if (!restoreTestSession()) {
+    currentData = [];
+    testStarted = false;
+    document.getElementById('homeScreen').style.display = 'flex';
+    document.getElementById('appShell').classList.remove('active');
+    buildQuiz(false);
+  }
 })();
 </script>
 
@@ -1485,7 +1593,17 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
     document.body.classList.toggle('fullscreen-mode', !!document.fullscreenElement);
   });
   document.addEventListener('keydown', function(e){
-    if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) {
+    const tag = document.activeElement?.tagName;
+
+    // Esc exits the current test and opens the question-set upload/selection page.
+    // Do not trigger while typing in an input/textarea/select.
+    if (e.key === 'Escape' && testStarted && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
+      e.preventDefault();
+      exitTestToUploadPage();
+      return;
+    }
+
+    if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
       e.preventDefault(); toggleExamFullscreen();
     }
   });
