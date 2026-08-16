@@ -529,7 +529,7 @@
       A question is <code>{"q":"...","o":{"A":"...","B":"...","C":"...","D":"..."},"a":"B"}</code>
       where <code>a</code> is the correct letter. You can upload a <code>.json</code> file with this
       same structure instead of pasting it. Once loaded, the paper is saved automatically and will
-      reopen the next time you use this artifact — click "Reset to default paper" to clear the loaded paper. Saved Questions are stored separately and can be deleted individually.
+      reopen the next time you use this artifact — click "Reset to default paper" to clear the loaded paper. Saved Questions are stored separately and can be deleted individually. They are displayed as Project 1, Project 2, Project 3, etc.
     </div>
   </div>
 </div>
@@ -767,6 +767,15 @@ async function toggleSaveQuestion(item, btn){
   }
 
   try{
+    const { data: existingRows, error: existingError } = await supabaseClient
+      .from(SAVED_QUESTIONS_TABLE)
+      .select('id')
+      .eq('user_id', supabaseUser.id);
+
+    if (existingError) throw existingError;
+
+    // The current saved-question table stays unchanged.
+    // Project numbers are calculated from the saved list order in the UI.
     const { data, error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
       .upsert({
         user_id: supabaseUser.id,
@@ -827,7 +836,9 @@ function renderSavedQuestions(){
   const list = document.getElementById('savedList');
   const count = document.getElementById('savedCount');
   if (!list || !count) return;
-  const rows = Array.from(savedQuestions.values());
+  const rows = Array.from(savedQuestions.values()).sort((a,b) =>
+    new Date(a.saved_at) - new Date(b.saved_at)
+  );
   count.textContent = rows.length + (rows.length === 1 ? ' saved' : ' saved');
   if (!rows.length){
     list.innerHTML = '<div class="saved-empty">No saved questions yet. Click “☆ Save” beside any question.</div>';
@@ -839,7 +850,13 @@ function renderSavedQuestions(){
     wrap.className = 'saved-item';
     const q = document.createElement('div');
     q.className = 'saved-question';
-    q.textContent = questionPreview(row.question);
+    const projectLabel = document.createElement('span');
+    projectLabel.className = 'saved-project';
+    projectLabel.textContent = `Project ${rows.indexOf(row) + 1}`;
+    q.appendChild(projectLabel);
+    const questionText = document.createElement('span');
+    questionText.textContent = '— ' + questionPreview(row.question);
+    q.appendChild(questionText);
     q.title = 'Click to jump to this question';
     q.onclick = () => {
       const btn = document.querySelector('.save-q-btn[data-question-key="' + row.question_key + '"]');
