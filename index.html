@@ -855,7 +855,7 @@ function renderSavedQuestions(){
     projectLabel.textContent = `Project ${rows.indexOf(row) + 1}`;
     q.appendChild(projectLabel);
     const questionText = document.createElement('span');
-    questionText.textContent = '— ' + questionPreview(row.question);
+    questionText.textContent = '';
     q.appendChild(questionText);
     q.title = 'Click to jump to this question';
     q.onclick = () => {
