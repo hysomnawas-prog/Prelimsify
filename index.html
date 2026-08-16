@@ -495,48 +495,51 @@
     padding:0 20px 30px;
   }
 
-  /* Fullscreen layout: the entire website expands to the native fullscreen viewport. */
-  html.app-fullscreen,
-  body.fullscreen-mode {
-    width:100%;
-    min-width:100%;
-    height:100%;
-    min-height:100%;
-    margin:0;
-    padding:0;
-    background:var(--paper);
+  /* TRUE WHOLE-MONITOR FULLSCREEN: F enters native browser fullscreen for the entire document. */
+  :fullscreen {
+    width:100vw !important;
+    height:100vh !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:hidden !important;
+    background:var(--paper) !important;
   }
-  html:fullscreen,
-  html:fullscreen body {
-    width:100%;
-    height:100%;
-    margin:0;
-    padding:0;
-    overflow:hidden;
+  :fullscreen body {
+    width:100vw !important;
+    min-width:100vw !important;
+    height:100vh !important;
+    min-height:100vh !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:hidden !important;
+    background:var(--paper) !important;
   }
   body.fullscreen-mode {
-    position:fixed;
-    inset:0;
-    width:100vw;
-    height:100vh;
-    overflow:hidden;
+    width:100vw !important;
+    min-width:100vw !important;
+    height:100vh !important;
+    min-height:100vh !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow:hidden !important;
+  }
+  body.fullscreen-mode .home-screen,
+  body.fullscreen-mode .app-shell.active {
+    width:100vw !important;
+    min-width:100vw !important;
+    height:100vh !important;
+    min-height:100vh !important;
+    max-width:none !important;
+    margin:0 !important;
   }
   body.fullscreen-mode .home-screen {
     position:fixed;
     inset:0;
-    width:100vw;
-    height:100vh;
-    min-height:100vh;
     overflow:auto;
   }
   body.fullscreen-mode .app-shell.active {
     position:fixed;
     inset:0;
-    width:100vw;
-    height:100vh;
-    min-width:100vw;
-    min-height:100vh;
-    max-width:none;
     overflow-y:auto;
     overflow-x:hidden;
     background:var(--paper);
@@ -549,46 +552,37 @@
   body.fullscreen-mode .container,
   body.fullscreen-mode .submit-bar,
   body.fullscreen-mode .footer-note {
-    width:100%;
-    max-width:none;
-    margin-left:0;
-    margin-right:0;
+    width:100% !important;
+    max-width:none !important;
+    box-sizing:border-box;
   }
   body.fullscreen-mode .scorebar {
     position:sticky;
     top:0;
-    width:100%;
+    z-index:20;
   }
   body.fullscreen-mode .container {
-    width:100%;
-    max-width:none;
-    border:0;
-  }
-  body.fullscreen-mode .masthead {
-    padding-top:12px;
-    width:100%;
+    border-left:0;
+    border-right:0;
+    padding-left:clamp(24px,4vw,64px);
+    padding-right:clamp(24px,4vw,64px);
   }
   body.fullscreen-mode .loader-panel,
-  body.fullscreen-mode .container,
   body.fullscreen-mode .submit-bar {
     border-left:0;
     border-right:0;
+    padding-left:clamp(24px,4vw,64px);
+    padding-right:clamp(24px,4vw,64px);
   }
-  body.fullscreen-mode .container {
-    padding-left:40px;
-    padding-right:40px;
-  }
-  body.fullscreen-mode .loader-panel {
-    padding-left:40px;
-    padding-right:40px;
-  }
-  body.fullscreen-mode .submit-bar {
-    padding-left:40px;
-    padding-right:40px;
+  body.fullscreen-mode .masthead {
+    width:100%;
+    padding-left:clamp(24px,4vw,64px);
+    padding-right:clamp(24px,4vw,64px);
+    box-sizing:border-box;
   }
   body.fullscreen-mode .result-overlay-inner {
     max-width:none;
-    width:min(900px, 94vw);
+    width:min(1100px,94vw);
   }
 </style>
 </head>
@@ -1633,10 +1627,10 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   // (tabs, address bar, bookmarks) and makes Prelimsify fill the whole display.
   async function toggleExamFullscreen(){
     try {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-      } else {
+      if (document.fullscreenElement) {
         await document.exitFullscreen();
+      } else if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen({navigationUI:'hide'});
       }
     } catch (err) {
       console.warn('Fullscreen request failed:', err);
