@@ -1579,18 +1579,14 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
 <script>
 (function(){
+  // Use app-level fullscreen styling instead of the browser's native
+  // Fullscreen API. Native fullscreen reserves Escape for the browser,
+  // which would make Escape a two-step action. Here F controls fullscreen
+  // and Escape remains fully available to remove the test immediately.
   function toggleExamFullscreen(){
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(()=>{});
-      document.body.classList.add('fullscreen-mode');
-    } else {
-      document.exitFullscreen?.().catch(()=>{});
-      document.body.classList.remove('fullscreen-mode');
-    }
+    document.body.classList.toggle('fullscreen-mode');
+    document.documentElement.classList.toggle('app-fullscreen', document.body.classList.contains('fullscreen-mode'));
   }
-  document.addEventListener('fullscreenchange', function(){
-    document.body.classList.toggle('fullscreen-mode', !!document.fullscreenElement);
-  });
   function handleEscapeExit(e){
     const tag = document.activeElement?.tagName;
     if (e.key === 'Escape' && testStarted && !['INPUT','TEXTAREA','SELECT'].includes(tag)) {
