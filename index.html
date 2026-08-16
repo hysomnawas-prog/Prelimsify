@@ -54,6 +54,47 @@
     margin-top:6px;
   }
 
+  /* ---- Home screen ---- */
+  .home-screen{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--paper);
+    text-align:center;
+    padding:30px 20px;
+  }
+  .home-content h1{
+    margin:0;
+    font-size:52px;
+    letter-spacing:.02em;
+    font-weight:700;
+  }
+  .home-content p{
+    margin:10px 0 28px;
+    font-family:var(--sans);
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+  .home-content .btn{
+    font-size:15px;
+    padding:11px 30px;
+  }
+
+  .app-shell{ display:none; }
+  .app-shell.active{ display:block; }
+
+  .score-actions{
+    display:flex;
+    gap:7px;
+    align-items:center;
+    margin-left:auto;
+  }
+  .score-actions .btn{
+    padding:5px 10px;
+    font-size:11px;
+  }
+
   /* ---- Loader panel ---- */
   .loader-panel{
     max-width:720px;
@@ -479,6 +520,15 @@
 </head>
 <body>
 
+<div class="home-screen" id="homeScreen">
+  <div class="home-content">
+    <h1>Prelimsify</h1>
+    <p>UPSC CSE Prelims mock test</p>
+    <button class="btn" id="startTestBtn" type="button">Start Test</button>
+  </div>
+</div>
+
+<div class="app-shell" id="appShell">
 <div class="masthead">
   <div class="eyebrow" id="eyebrowText"></div>
   <h1 id="titleText">UPSC CSE Prelims 2027</h1>
@@ -526,6 +576,10 @@
   <span class="timer" id="timerDisplay">02:00:00</span>
   <span>Answered: <span id="answeredCount">0</span>/<span id="totalCount">100</span></span>
   <span class="score">Marks: <span class="num" id="scoreCount">0.00</span>/<span id="maxMarksDisplay">200</span></span>
+  <span class="score-actions">
+    <button class="btn secondary" id="homeBtn" type="button">Home</button>
+    <button class="btn secondary" id="resetBtn" type="button">Reset</button>
+  </span>
 </div>
 <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
 
@@ -533,6 +587,7 @@
 
 <div class="submit-bar">
   <button class="btn" id="submitBtn" onclick="submitPaper()">Submit Paper</button>
+  <button class="btn secondary" id="resetBtnBottom" type="button" style="margin-left:8px;">Reset Test</button>
 </div>
 
 <div class="footer-note">End of paper</div>
@@ -551,6 +606,7 @@
     <button class="btn" onclick="closeResult()">Review Answers</button>
     <button class="btn secondary" onclick="location.reload()" style="margin-left:8px;">Retake</button>
   </div>
+</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -704,6 +760,41 @@ let PASS_MARK = 120;
 let timerInterval = null;
 let remaining = 120 * 60;
 let savedProjects = [];
+let testStarted = false;
+
+function showTest(){
+  testStarted = true;
+  document.getElementById('homeScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('active');
+  window.scrollTo(0, 0);
+  buildQuiz();
+}
+
+function showHome(){
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  testStarted = false;
+  document.getElementById('appShell').classList.remove('active');
+  document.getElementById('homeScreen').style.display = 'flex';
+  document.getElementById('resultOverlay').classList.remove('open');
+  window.scrollTo(0, 0);
+}
+
+function resetTest(){
+  if (!testStarted) return;
+  if (!confirm('Reset this test? All answers and your current score will be cleared.')) return;
+
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+
+  const mins = Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120);
+  remaining = Math.round(mins * 60);
+  timeUp = false;
+  submitted = false;
+  buildQuiz();
+  window.scrollTo(0, 0);
+}
+
 
 const root = document.getElementById('quizRoot');
 const savePaperBtn = document.getElementById('savePaperBtn');
@@ -1219,10 +1310,14 @@ function closeResult(){
   document.getElementById('resultOverlay').classList.remove('open');
 }
 
+// UI controls
+document.getElementById('startTestBtn').addEventListener('click', showTest);
+document.getElementById('homeBtn').addEventListener('click', showHome);
+document.getElementById('resetBtn').addEventListener('click', resetTest);
+document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
+
 // init
 (async function init(){
-  buildQuiz();
-
   const connected = await initSupabase();
   if (!connected) return;
 
@@ -1230,7 +1325,6 @@ function closeResult(){
 
   const restored = await loadSavedPaperOnStartup();
   if (restored){
-    buildQuiz();
     setLoaderMsg('Restored your previously saved question paper from Supabase.', true);
   } else {
     setLoaderMsg('Connected to Supabase. Loaded paper will be saved there.', true);
