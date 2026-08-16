@@ -172,6 +172,30 @@
   }
   .loader-msg.err{ color:var(--red-line); }
   .loader-msg.ok{ color:var(--green-line); }
+  .hysom-divider{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:16px 0 10px;
+    color:var(--muted);
+    font-family:var(--sans);
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .hysom-divider:before,.hysom-divider:after{
+    content:"";
+    height:1px;
+    background:var(--rule-light);
+    flex:1;
+  }
+  .hysom-input{
+    height:260px !important;
+    font-family:var(--serif) !important;
+    font-size:13px !important;
+    line-height:1.5;
+  }
+
   .loader-hint{
     font-size:11px;
     color:var(--ink-soft);
@@ -541,8 +565,31 @@
     <label for="jsonInput">Paste question JSON</label>
     <textarea id="jsonInput" placeholder='[{"s":"Section title"},{"q":"Question text","o":{"A":"opt A","B":"opt B","C":"opt C","D":"opt D"},"a":"B"}]'></textarea>
     <div class="loader-row">
-      <input type="file" id="fileInput" accept=".json,application/json">
-      <button class="btn" onclick="loadFromTextarea()">Load Paper</button>
+      <input type="file" id="fileInput" accept=".json,.hysom,application/json,text/plain">
+      <button class="btn" onclick="loadFromTextarea()">Load JSON</button>
+    </div>
+
+    <div class="hysom-divider"><span>or use .hysom format</span></div>
+    <label for="hysomInput">Direct Question Set (.hysom format)</label>
+    <textarea id="hysomInput" class="hysom-input" placeholder="Q1.
+
+With reference to the Second Urbanisation in the Indian subcontinent, consider the following statements:
+
+1. The emergence of urban centres was associated with the expansion of craft production.
+2. The use of punch-marked coins is associated with this period.
+3. The emergence of cities was confined exclusively to the Gangetic plains.
+
+Which of the statements given above is/are correct?
+
+**A. 1 and 2 only**
+B. 2 only
+C. 1 and 3 only
+D. 1, 2 and 3
+
+**Correct Answer: A. 1 and 2 only**"></textarea>
+    <div class="loader-row">
+      <button class="btn" onclick="loadHysomFromTextarea()">Load .hysom Format</button>
+      <span class="loader-hint">Use Q1., Q2., etc. and finish each question with <code>Correct Answer: A. ...</code></span>
     </div>
     <div class="loader-row">
       <label style="font-weight:400;">Time limit (minutes):</label>
@@ -584,12 +631,10 @@
 
 <div class="container" id="quizRoot"></div>
 
-<div class="submit-bar">
+<div class="submit-bar" id="submitBar" style="display:none;">
   <button class="btn" id="submitBtn" onclick="submitPaper()">Submit Paper</button>
   <button class="btn secondary" id="resetBtnBottom" type="button" style="margin-left:8px;">Reset Test</button>
 </div>
-
-<div class="footer-note">End of paper</div>
 
 <div class="result-overlay" id="resultOverlay">
   <div class="result-card" id="resultCard">
@@ -990,11 +1035,84 @@ document.getElementById('fileInput').addEventListener('change', function(e){
   if (!file) return;
   const reader = new FileReader();
   reader.onload = function(ev){
-    document.getElementById('jsonInput').value = ev.target.result;
-    setLoaderMsg('File loaded into the box below — click "Load Paper" to apply.', true);
+    const text = String(ev.target.result || '');
+    if (file.name.toLowerCase().endsWith('.hysom')){
+      document.getElementById('hysomInput').value = text;
+      setLoaderMsg('.hysom file loaded — click "Load .hysom Format" to apply.', true);
+    } else {
+      document.getElementById('jsonInput').value = text;
+      setLoaderMsg('JSON file loaded — click "Load JSON" to apply.', true);
+    }
   };
   reader.readAsText(file);
 });
+
+function cleanHysomLine(line){
+  return String(line || '').replace(/\*\*/g, '').replace(/^[ \t]+|[ \t]+$/g, '');
+}
+
+function parseHysom(text){
+  const normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
+  if (!normalized) throw new Error('Paste a .hysom question set first.');
+
+  const starts = [...normalized.matchAll(/(?:^|\n)[ \t]*(Q\s*\d+)\.\s*/gi)];
+  if (!starts.length) throw new Error('No question headings found. Start questions with Q1., Q2., etc.');
+
+  const questions = [];
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i].index + (starts[i][0].startsWith('\n') ? 1 : 0);
+    const end = i + 1 < starts.length ? starts[i + 1].index : normalized.length;
+    const block = normalized.slice(start, end).replace(/^Q\s*\d+\.\s*/i, '').trim();
+
+    const answerMatch = block.match(/(?:^|\n)[ \t]*\*{0,2}Correct Answer\s*:\s*([A-D])(?:\.\s*)?(.*?)\*{0,2}[ \t]*(?=\n|$)/i);
+    if (!answerMatch) throw new Error(`Question ${i + 1}: missing "Correct Answer: A. ..." line.`);
+    const answer = answerMatch[1].toUpperCase();
+
+    const beforeAnswer = block.slice(0, answerMatch.index).trim();
+    const optionMatches = [...beforeAnswer.matchAll(/(?:^|\n)[ \t]*\*{0,2}([A-D])\.[ \t]*(.*?)\*{0,2}[ \t]*$/gim)];
+    if (optionMatches.length < 2) throw new Error(`Question ${i + 1}: could not find answer options A-D.`);
+
+    const firstOptionPos = optionMatches[0].index + (optionMatches[0][0].startsWith('\n') ? 1 : 0);
+    let questionText = beforeAnswer.slice(0, firstOptionPos).trim();
+    questionText = questionText.replace(/^\*+|\*+$/g, '').trim();
+
+    const opts = {};
+    optionMatches.forEach(m => {
+      opts[m[1].toUpperCase()] = cleanHysomLine(m[2]);
+    });
+
+    if (!opts[answer]) throw new Error(`Question ${i + 1}: correct answer ${answer} is not one of the options.`);
+    questions.push({ q: questionText, o: opts, a: answer });
+  }
+
+  validateData(questions);
+  return questions;
+}
+
+function loadHysomFromTextarea(){
+  const raw = document.getElementById('hysomInput').value.trim();
+  try{
+    const parsed = parseHysom(raw);
+    loadQuestionSet(parsed, '.hysom question set loaded');
+  }catch(err){
+    setLoaderMsg('Could not load .hysom: ' + err.message, false);
+  }
+}
+
+function loadQuestionSet(parsed, successMessage){
+  const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
+  const mc = parseFloat(document.getElementById('markCorrectInput').value);
+  const mw = parseFloat(document.getElementById('markWrongInput').value);
+  const pm = parseFloat(document.getElementById('passMarkInput').value);
+
+  MARK_CORRECT = isNaN(mc) ? 2 : mc;
+  MARK_WRONG = isNaN(mw) ? -0.66 : mw;
+  PASS_MARK = isNaN(pm) ? 120 : pm;
+  remaining = Math.round(mins * 60);
+  currentData = parsed;
+  buildQuiz();
+  setLoaderMsg(successMessage + '. Click "Save Current Question Set" if you want to keep it in Saved Projects.', true);
+}
 
 function validateData(arr){
   if (!Array.isArray(arr)) throw new Error('Top level must be an array.');
@@ -1026,18 +1144,7 @@ function loadFromTextarea(){
     return;
   }
 
-  const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
-  const mc = parseFloat(document.getElementById('markCorrectInput').value);
-  const mw = parseFloat(document.getElementById('markWrongInput').value);
-  const pm = parseFloat(document.getElementById('passMarkInput').value);
-
-  MARK_CORRECT = isNaN(mc) ? 2 : mc;
-  MARK_WRONG = isNaN(mw) ? -0.66 : mw;
-  PASS_MARK = isNaN(pm) ? 120 : pm;
-  remaining = Math.round(mins * 60);
-  currentData = parsed;
-  buildQuiz();
-  setLoaderMsg('Paper loaded. Click "Save Current Question Set" if you want to keep it in Saved Projects.', true);
+  loadQuestionSet(parsed, 'Paper loaded');
 }
 
 async function initSupabase(){
@@ -1162,6 +1269,7 @@ function buildQuiz(){
   root.innerHTML = '';
   document.getElementById('timesUpBanner').style.display = 'none';
   document.getElementById('resultOverlay').classList.remove('open');
+  document.getElementById('submitBar').style.display = 'none';
   document.getElementById('submitBtn').disabled = true;
   document.getElementById('submitBtn').textContent = 'Submit Paper';
 
@@ -1180,6 +1288,8 @@ function buildQuiz(){
     return;
   }
 
+
+  document.getElementById('submitBar').style.display = 'flex';
 
   let qNum = 0;
   total = currentData.filter(d => d.q).length;
