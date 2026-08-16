@@ -144,6 +144,19 @@
   }
 
 
+  .save-paper-btn{
+    width:100%;
+    margin-top:10px;
+    border:1px solid var(--ink);
+    background:#fff;
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:11px;
+    font-weight:700;
+    padding:8px 12px;
+    cursor:pointer;
+  }
+  .save-paper-btn:hover{background:#f4f4f4;}
   .saved-panel{
     margin-top:14px;
     border-top:1px solid var(--rule-light);
@@ -181,22 +194,6 @@
     cursor:pointer;
   }
   .saved-delete:hover{background:#fdf0f0;}
-  .save-q-btn{
-    margin-left:auto;
-    flex:0 0 auto;
-    border:1px solid var(--rule);
-    background:#fff;
-    color:var(--ink);
-    font-family:var(--sans);
-    font-size:10px;
-    padding:5px 9px;
-    cursor:pointer;
-    white-space:nowrap;
-  }
-  .save-q-btn:hover{background:#f7f7f7;}
-  .save-q-btn.saved{border-color:var(--green-line);color:var(--green-line);font-weight:700;}
-  .qhead{display:flex;align-items:flex-start;gap:10px;}
-  .qhead .qtext{flex:1;}
 
   .scorebar{
     position:sticky;
@@ -512,24 +509,13 @@
     <div class="loader-msg" id="loaderMsg"></div>
     <div class="saved-panel">
       <div class="saved-panel-head">
-        <span class="saved-title">Saved Questions</span>
+        <span class="saved-title">Saved Projects</span>
         <span class="saved-count" id="savedCount">0 saved</span>
       </div>
       <div class="saved-list" id="savedList">
-        <div class="saved-empty">No saved questions yet. Click “☆ Save” beside any question.</div>
+        <div class="saved-empty">No saved question sets yet.</div>
       </div>
-    </div>
-
-    <div class="loader-hint">
-      <strong>Cloud saving:</strong> this version uses Supabase instead of the artifact-only <code>window.storage</code>.
-      Your loaded paper is saved to your own anonymous Supabase user record.
-    </div>
-    <div class="loader-hint">
-      Format: an array of objects. A section heading is <code>{"s":"Heading text"}</code>.
-      A question is <code>{"q":"...","o":{"A":"...","B":"...","C":"...","D":"..."},"a":"B"}</code>
-      where <code>a</code> is the correct letter. You can upload a <code>.json</code> file with this
-      same structure instead of pasting it. Once loaded, the paper is saved automatically and will
-      reopen the next time you use this artifact — click "Reset to default paper" to clear the loaded paper. Saved Questions are stored separately and can be deleted individually. They are displayed as Project 1, Project 2, Project 3, etc.
+      <button type="button" class="save-paper-btn" id="savePaperBtn">Save Current Question Set</button>
     </div>
   </div>
 </div>
@@ -579,7 +565,7 @@ const SUPABASE_URL = "https://fzwsmvwvraruktyyiscr.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_";
 
 const SUPABASE_TABLE = "quiz_papers";
-const SAVED_QUESTIONS_TABLE = "saved_questions";
+const SAVED_PROJECTS_TABLE = "quiz_projects";
 let supabaseClient = null;
 let supabaseUser = null;
 
@@ -717,159 +703,143 @@ let MARK_WRONG = -0.66;
 let PASS_MARK = 120;
 let timerInterval = null;
 let remaining = 120 * 60;
-let savedQuestions = new Map();
+let savedProjects = [];
 
 const root = document.getElementById('quizRoot');
+const savePaperBtn = document.getElementById('savePaperBtn');
+if (savePaperBtn) savePaperBtn.addEventListener('click', saveCurrentQuestionSet);
 
 
-function questionKey(item){
-  const options = {};
-  Object.keys(item.o || {}).sort().forEach(k => { options[k] = item.o[k]; });
-  const raw = JSON.stringify({q:item.q || '', o:options, a:item.a || ''});
-  let h = 2166136261;
-  for (let i = 0; i < raw.length; i++){
-    h ^= raw.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+
+function projectPreview(paper){
+  const first = paper && paper.questions && paper.questions[0];
+  return first ? String(first.q || '').replace(/\s+/g, ' ').trim() : 'Question set';
+}
+
+async function loadSavedProjects(){
+  if (!supabaseClient || !supabaseUser) return;
+
+  try{
+    const { data, error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .select('id,user_id,project_number,paper,saved_at')
+      .eq('user_id', supabaseUser.id)
+      .order('project_number', { ascending:true });
+
+    if (error) throw error;
+    savedProjects = data || [];
+    renderSavedProjects();
+  }catch(e){
+    console.error('Could not load saved projects:', e);
+    setLoaderMsg('Could not load saved projects: ' + (e.message || e), false);
   }
-  return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-function questionPreview(item){
-  return String(item.q || '').replace(/\s+/g, ' ').trim();
-}
-
-function setQuestionSaveButton(btn, saved){
-  btn.classList.toggle('saved', saved);
-  btn.textContent = saved ? '✓ Saved' : '☆ Save';
-  btn.title = saved ? 'Click to remove from Saved Questions' : 'Save this question';
-}
-
-async function toggleSaveQuestion(item, btn){
+async function saveCurrentQuestionSet(){
   if (!supabaseClient || !supabaseUser){
     setLoaderMsg('Supabase is not connected. Try again after the connection is restored.', false);
     return;
   }
-  const key = questionKey(item);
-
-  if (savedQuestions.has(key)){
-    try{
-      const { error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
-        .delete().eq('user_id', supabaseUser.id).eq('question_key', key);
-      if (error) throw error;
-      savedQuestions.delete(key);
-      setQuestionSaveButton(btn, false);
-      renderSavedQuestions();
-      setLoaderMsg('Question removed from Saved Questions.', true);
-    }catch(e){
-      setLoaderMsg('Could not delete saved question: ' + (e.message || e), false);
-    }
-    return;
-  }
 
   try{
-    const { data: existingRows, error: existingError } = await supabaseClient
-      .from(SAVED_QUESTIONS_TABLE)
-      .select('id')
-      .eq('user_id', supabaseUser.id);
-
-    if (existingError) throw existingError;
-
-    // The current saved-question table stays unchanged.
-    // Project numbers are calculated from the saved list order in the UI.
-    const { data, error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
-      .upsert({
-        user_id: supabaseUser.id,
-        question_key: key,
-        question: item,
-        saved_at: new Date().toISOString()
-      }, { onConflict: 'user_id,question_key' })
-      .select('id,user_id,question_key,question,saved_at')
-      .single();
-    if (error) throw error;
-
-    savedQuestions.set(key, data || {
-      user_id: supabaseUser.id, question_key:key, question:item,
-      saved_at:new Date().toISOString()
-    });
-    setQuestionSaveButton(btn, true);
-    renderSavedQuestions();
-    setLoaderMsg('Question saved.', true);
-  }catch(e){
-    setLoaderMsg('Could not save question: ' + (e.message || e), false);
-  }
-}
-
-async function loadSavedQuestions(){
-  if (!supabaseClient || !supabaseUser) return;
-  try{
-    const { data, error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
-      .select('id,user_id,question_key,question,saved_at')
+    const { data: latest, error: latestError } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .select('project_number')
       .eq('user_id', supabaseUser.id)
-      .order('saved_at', { ascending:false });
+      .order('project_number', { ascending:false })
+      .limit(1);
+
+    if (latestError) throw latestError;
+
+    const nextProject = latest && latest.length ? Number(latest[0].project_number) + 1 : 1;
+
+    const { data, error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .insert({
+        user_id: supabaseUser.id,
+        project_number: nextProject,
+        paper: paper,
+        saved_at: new Date().toISOString()
+      })
+      .select('id,user_id,project_number,paper,saved_at')
+      .single();
+
     if (error) throw error;
-    savedQuestions = new Map((data || []).map(row => [row.question_key, row]));
-    renderSavedQuestions();
+
+    savedProjects.push(data);
+    savedProjects.sort((a,b) => a.project_number - b.project_number);
+    renderSavedProjects();
+    setLoaderMsg(`Project ${nextProject} saved.`, true);
   }catch(e){
-    console.error('Could not load saved questions:', e);
-    setLoaderMsg('Could not load saved questions: ' + (e.message || e), false);
+    console.error('Could not save project:', e);
+    setLoaderMsg('Could not save project: ' + (e.message || e), false);
   }
 }
 
-async function deleteSavedQuestion(key){
+async function deleteSavedProject(id){
   if (!supabaseClient || !supabaseUser) return;
+
   try{
-    const { error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
-      .delete().eq('user_id', supabaseUser.id).eq('question_key', key);
+    const { error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .delete()
+      .eq('user_id', supabaseUser.id)
+      .eq('id', id);
+
     if (error) throw error;
-    savedQuestions.delete(key);
-    renderSavedQuestions();
-    document.querySelectorAll('.save-q-btn').forEach(btn => {
-      if (btn.dataset.questionKey === key) setQuestionSaveButton(btn, false);
-    });
-    setLoaderMsg('Question deleted from Saved Questions.', true);
+
+    savedProjects = savedProjects.filter(p => p.id !== id);
+    renderSavedProjects();
+    setLoaderMsg('Project deleted.', true);
   }catch(e){
-    setLoaderMsg('Could not delete saved question: ' + (e.message || e), false);
+    setLoaderMsg('Could not delete project: ' + (e.message || e), false);
   }
 }
 
-function renderSavedQuestions(){
+function renderSavedProjects(){
   const list = document.getElementById('savedList');
   const count = document.getElementById('savedCount');
   if (!list || !count) return;
-  const rows = Array.from(savedQuestions.values()).sort((a,b) =>
-    new Date(a.saved_at) - new Date(b.saved_at)
-  );
+
+  const rows = [...savedProjects].sort((a,b) => a.project_number - b.project_number);
   count.textContent = rows.length + (rows.length === 1 ? ' saved' : ' saved');
+
   if (!rows.length){
-    list.innerHTML = '<div class="saved-empty">No saved questions yet. Click “☆ Save” beside any question.</div>';
+    list.innerHTML = '<div class="saved-empty">No saved question sets yet.</div>';
     return;
   }
+
   list.innerHTML = '';
   rows.forEach(row => {
     const wrap = document.createElement('div');
     wrap.className = 'saved-item';
-    const q = document.createElement('div');
-    q.className = 'saved-question';
-    const projectLabel = document.createElement('span');
-    projectLabel.className = 'saved-project';
-    projectLabel.textContent = `Project ${rows.indexOf(row) + 1}`;
-    q.appendChild(projectLabel);
-    const questionText = document.createElement('span');
-    questionText.textContent = '';
-    q.appendChild(questionText);
-    q.title = 'Click to jump to this question';
-    q.onclick = () => {
-      const btn = document.querySelector('.save-q-btn[data-question-key="' + row.question_key + '"]');
-      if (btn) btn.closest('.qcard')?.scrollIntoView({behavior:'smooth', block:'center'});
+
+    const name = document.createElement('div');
+    name.className = 'saved-question';
+    name.textContent = `Project ${row.project_number}`;
+    name.title = 'Load this question set';
+    name.onclick = () => {
+      paper = row.paper;
+      buildQuiz();
+      closeLoaderIfOpen();
+      window.scrollTo({top:0, behavior:'smooth'});
+      setLoaderMsg(`Loaded Project ${row.project_number}.`, true);
     };
+
     const del = document.createElement('button');
     del.className = 'saved-delete';
     del.textContent = 'Delete';
-    del.onclick = () => deleteSavedQuestion(row.question_key);
-    wrap.appendChild(q);
+    del.onclick = () => deleteSavedProject(row.id);
+
+    wrap.appendChild(name);
     wrap.appendChild(del);
     list.appendChild(wrap);
   });
+}
+
+function closeLoaderIfOpen(){
+  const body = document.getElementById('loaderBody');
+  if (body) body.classList.remove('open');
 }
 
 function toggleLoader(){
@@ -1110,25 +1080,8 @@ function buildQuiz(){
 
     const head = document.createElement('div');
     head.className = 'qhead';
-
-    const qNumEl = document.createElement('span');
-    qNumEl.className = 'qnum';
-    qNumEl.textContent = `Q${qNum}.`;
-
-    const qTextEl = document.createElement('span');
-    qTextEl.className = 'qtext';
-    qTextEl.textContent = item.q;
-
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'save-q-btn';
-    saveBtn.dataset.questionKey = questionKey(item);
-    setQuestionSaveButton(saveBtn, savedQuestions.has(saveBtn.dataset.questionKey));
-    saveBtn.onclick = () => toggleSaveQuestion(item, saveBtn);
-
-    head.appendChild(qNumEl);
-    head.appendChild(qTextEl);
-    head.appendChild(saveBtn);
+    head.innerHTML = `<span class="qnum">Q${qNum}.</span><span class="qtext"></span>`;
+    head.querySelector('.qtext').textContent = item.q;
     card.appendChild(head);
 
     const optsWrap = document.createElement('div');
@@ -1273,7 +1226,7 @@ function closeResult(){
   const connected = await initSupabase();
   if (!connected) return;
 
-  await loadSavedQuestions();
+  await loadSavedProjects();
 
   const restored = await loadSavedPaperOnStartup();
   if (restored){
