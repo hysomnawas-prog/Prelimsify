@@ -495,15 +495,27 @@
     padding:0 20px 30px;
   }
 
-  /* Full-screen exam mode: make the actual question paper span the viewport */
-  body.fullscreen-mode,
-  html:fullscreen body {
-    background:var(--paper);
+  /* App-level fullscreen mode (no native Fullscreen API). */
+  html.app-fullscreen,
+  body.fullscreen-mode {
     width:100%;
-    min-height:100vh;
+    height:100%;
+    min-height:100%;
+    margin:0;
+    background:var(--paper);
+    overflow:hidden;
   }
-
-  html:fullscreen .container,
+  body.fullscreen-mode .app-shell.active {
+    position:fixed;
+    inset:0;
+    width:100vw;
+    height:100vh;
+    min-height:100vh;
+    overflow-y:auto;
+    overflow-x:hidden;
+    background:var(--paper);
+    z-index:9999;
+  }
   body.fullscreen-mode .container {
     width:100vw;
     max-width:none;
