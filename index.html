@@ -143,6 +143,61 @@
     border-radius:2px;
   }
 
+
+  .saved-panel{
+    margin-top:14px;
+    border-top:1px solid var(--rule-light);
+    padding-top:12px;
+  }
+  .saved-panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:8px;
+  }
+  .saved-title{font-family:var(--serif);font-weight:700;font-size:13px;}
+  .saved-count{font-family:var(--mono);font-size:10px;color:var(--muted);}
+  .saved-list{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow:auto;}
+  .saved-empty{color:var(--muted);font-family:var(--sans);font-size:11px;padding:8px 0;}
+  .saved-item{
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:10px;
+    align-items:center;
+    border:1px solid var(--rule);
+    background:#fff;
+    padding:8px 10px;
+  }
+  .saved-question{font-family:var(--serif);font-size:12px;line-height:1.45;cursor:pointer;}
+  .saved-question:hover{text-decoration:underline;}
+  .saved-delete{
+    border:1px solid var(--rule);
+    background:#fff;
+    color:var(--red-line);
+    font-family:var(--sans);
+    font-size:10px;
+    padding:5px 8px;
+    cursor:pointer;
+  }
+  .saved-delete:hover{background:#fdf0f0;}
+  .save-q-btn{
+    margin-left:auto;
+    flex:0 0 auto;
+    border:1px solid var(--rule);
+    background:#fff;
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:10px;
+    padding:5px 9px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .save-q-btn:hover{background:#f7f7f7;}
+  .save-q-btn.saved{border-color:var(--green-line);color:var(--green-line);font-weight:700;}
+  .qhead{display:flex;align-items:flex-start;gap:10px;}
+  .qhead .qtext{flex:1;}
+
   .scorebar{
     position:sticky;
     top:0;
@@ -455,6 +510,16 @@
       <input type="number" id="passMarkInput" value="120" style="width:70px; font-family:var(--sans); font-size:12px; padding:4px;">
     </div>
     <div class="loader-msg" id="loaderMsg"></div>
+    <div class="saved-panel">
+      <div class="saved-panel-head">
+        <span class="saved-title">Saved Questions</span>
+        <span class="saved-count" id="savedCount">0 saved</span>
+      </div>
+      <div class="saved-list" id="savedList">
+        <div class="saved-empty">No saved questions yet. Click “☆ Save” beside any question.</div>
+      </div>
+    </div>
+
     <div class="loader-hint">
       <strong>Cloud saving:</strong> this version uses Supabase instead of the artifact-only <code>window.storage</code>.
       Your loaded paper is saved to your own anonymous Supabase user record.
@@ -464,7 +529,7 @@
       A question is <code>{"q":"...","o":{"A":"...","B":"...","C":"...","D":"..."},"a":"B"}</code>
       where <code>a</code> is the correct letter. You can upload a <code>.json</code> file with this
       same structure instead of pasting it. Once loaded, the paper is saved automatically and will
-      reopen the next time you use this artifact — click "Reset to default paper" to clear it.
+      reopen the next time you use this artifact — click "Reset to default paper" to clear the loaded paper. Saved Questions are stored separately and can be deleted individually.
     </div>
   </div>
 </div>
@@ -514,6 +579,7 @@ const SUPABASE_URL = "https://fzwsmvwvraruktyyiscr.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_";
 
 const SUPABASE_TABLE = "quiz_papers";
+const SAVED_QUESTIONS_TABLE = "saved_questions";
 let supabaseClient = null;
 let supabaseUser = null;
 
@@ -651,8 +717,143 @@ let MARK_WRONG = -0.66;
 let PASS_MARK = 120;
 let timerInterval = null;
 let remaining = 120 * 60;
+let savedQuestions = new Map();
 
 const root = document.getElementById('quizRoot');
+
+
+function questionKey(item){
+  const options = {};
+  Object.keys(item.o || {}).sort().forEach(k => { options[k] = item.o[k]; });
+  const raw = JSON.stringify({q:item.q || '', o:options, a:item.a || ''});
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++){
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+function questionPreview(item){
+  return String(item.q || '').replace(/\s+/g, ' ').trim();
+}
+
+function setQuestionSaveButton(btn, saved){
+  btn.classList.toggle('saved', saved);
+  btn.textContent = saved ? '✓ Saved' : '☆ Save';
+  btn.title = saved ? 'Click to remove from Saved Questions' : 'Save this question';
+}
+
+async function toggleSaveQuestion(item, btn){
+  if (!supabaseClient || !supabaseUser){
+    setLoaderMsg('Supabase is not connected. Try again after the connection is restored.', false);
+    return;
+  }
+  const key = questionKey(item);
+
+  if (savedQuestions.has(key)){
+    try{
+      const { error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
+        .delete().eq('user_id', supabaseUser.id).eq('question_key', key);
+      if (error) throw error;
+      savedQuestions.delete(key);
+      setQuestionSaveButton(btn, false);
+      renderSavedQuestions();
+      setLoaderMsg('Question removed from Saved Questions.', true);
+    }catch(e){
+      setLoaderMsg('Could not delete saved question: ' + (e.message || e), false);
+    }
+    return;
+  }
+
+  try{
+    const { data, error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
+      .upsert({
+        user_id: supabaseUser.id,
+        question_key: key,
+        question: item,
+        saved_at: new Date().toISOString()
+      }, { onConflict: 'user_id,question_key' })
+      .select('id,user_id,question_key,question,saved_at')
+      .single();
+    if (error) throw error;
+
+    savedQuestions.set(key, data || {
+      user_id: supabaseUser.id, question_key:key, question:item,
+      saved_at:new Date().toISOString()
+    });
+    setQuestionSaveButton(btn, true);
+    renderSavedQuestions();
+    setLoaderMsg('Question saved.', true);
+  }catch(e){
+    setLoaderMsg('Could not save question: ' + (e.message || e), false);
+  }
+}
+
+async function loadSavedQuestions(){
+  if (!supabaseClient || !supabaseUser) return;
+  try{
+    const { data, error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
+      .select('id,user_id,question_key,question,saved_at')
+      .eq('user_id', supabaseUser.id)
+      .order('saved_at', { ascending:false });
+    if (error) throw error;
+    savedQuestions = new Map((data || []).map(row => [row.question_key, row]));
+    renderSavedQuestions();
+  }catch(e){
+    console.error('Could not load saved questions:', e);
+    setLoaderMsg('Could not load saved questions: ' + (e.message || e), false);
+  }
+}
+
+async function deleteSavedQuestion(key){
+  if (!supabaseClient || !supabaseUser) return;
+  try{
+    const { error } = await supabaseClient.from(SAVED_QUESTIONS_TABLE)
+      .delete().eq('user_id', supabaseUser.id).eq('question_key', key);
+    if (error) throw error;
+    savedQuestions.delete(key);
+    renderSavedQuestions();
+    document.querySelectorAll('.save-q-btn').forEach(btn => {
+      if (btn.dataset.questionKey === key) setQuestionSaveButton(btn, false);
+    });
+    setLoaderMsg('Question deleted from Saved Questions.', true);
+  }catch(e){
+    setLoaderMsg('Could not delete saved question: ' + (e.message || e), false);
+  }
+}
+
+function renderSavedQuestions(){
+  const list = document.getElementById('savedList');
+  const count = document.getElementById('savedCount');
+  if (!list || !count) return;
+  const rows = Array.from(savedQuestions.values());
+  count.textContent = rows.length + (rows.length === 1 ? ' saved' : ' saved');
+  if (!rows.length){
+    list.innerHTML = '<div class="saved-empty">No saved questions yet. Click “☆ Save” beside any question.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  rows.forEach(row => {
+    const wrap = document.createElement('div');
+    wrap.className = 'saved-item';
+    const q = document.createElement('div');
+    q.className = 'saved-question';
+    q.textContent = questionPreview(row.question);
+    q.title = 'Click to jump to this question';
+    q.onclick = () => {
+      const btn = document.querySelector('.save-q-btn[data-question-key="' + row.question_key + '"]');
+      if (btn) btn.closest('.qcard')?.scrollIntoView({behavior:'smooth', block:'center'});
+    };
+    const del = document.createElement('button');
+    del.className = 'saved-delete';
+    del.textContent = 'Delete';
+    del.onclick = () => deleteSavedQuestion(row.question_key);
+    wrap.appendChild(q);
+    wrap.appendChild(del);
+    list.appendChild(wrap);
+  });
+}
 
 function toggleLoader(){
   document.getElementById('loaderBody').classList.toggle('open');
@@ -892,8 +1093,25 @@ function buildQuiz(){
 
     const head = document.createElement('div');
     head.className = 'qhead';
-    head.innerHTML = `<span class="qnum">Q${qNum}.</span><span class="qtext"></span>`;
-    head.querySelector('.qtext').textContent = item.q;
+
+    const qNumEl = document.createElement('span');
+    qNumEl.className = 'qnum';
+    qNumEl.textContent = `Q${qNum}.`;
+
+    const qTextEl = document.createElement('span');
+    qTextEl.className = 'qtext';
+    qTextEl.textContent = item.q;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'save-q-btn';
+    saveBtn.dataset.questionKey = questionKey(item);
+    setQuestionSaveButton(saveBtn, savedQuestions.has(saveBtn.dataset.questionKey));
+    saveBtn.onclick = () => toggleSaveQuestion(item, saveBtn);
+
+    head.appendChild(qNumEl);
+    head.appendChild(qTextEl);
+    head.appendChild(saveBtn);
     card.appendChild(head);
 
     const optsWrap = document.createElement('div');
@@ -1037,6 +1255,8 @@ function closeResult(){
 
   const connected = await initSupabase();
   if (!connected) return;
+
+  await loadSavedQuestions();
 
   const restored = await loadSavedPaperOnStartup();
   if (restored){
