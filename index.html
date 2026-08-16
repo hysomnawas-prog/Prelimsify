@@ -896,12 +896,6 @@ function exitTestToUploadPage(){
   timeUp = false;
   clearTestSession();
 
-  // Exit browser fullscreen as well, if the exam was in fullscreen mode.
-  if (document.fullscreenElement && document.exitFullscreen) {
-    document.exitFullscreen().catch(()=>{});
-  }
-  document.body.classList.remove('fullscreen-mode');
-
   currentData = [];
   document.getElementById('homeScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('active');
@@ -1617,16 +1611,9 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
     }
   });
 
-  // Browser fullscreen may consume Escape before the page receives keydown.
-  // In that case, keyup is used as a fallback after fullscreen has closed.
-  document.addEventListener('keyup', function(e){
-    if (e.key !== 'Escape' || !testStarted) return;
-    const tag = document.activeElement?.tagName;
-    if (['INPUT','TEXTAREA','SELECT'].includes(tag)) return;
-    if (!document.fullscreenElement) {
-      exitTestToUploadPage();
-    }
-  });
+  // Do not use Escape to exit fullscreen. Escape only removes the test.
+  // The browser may reserve Escape while in native fullscreen; there is no
+  // page-level API that can force-cancel that browser-reserved behavior.
 })();
 </script>
 </body>
