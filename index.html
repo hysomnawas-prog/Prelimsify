@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>MCQ Exam Framework</title>
+<title>Prelimsify</title>
 <style>
   :root{
     --paper:#ffffff;
@@ -376,6 +376,14 @@
     margin-top:30px;
     padding:0 20px 30px;
   }
+
+  /* Full-screen exam mode */
+  body.fullscreen-mode .loader-panel,
+  body.fullscreen-mode .quiz-wrap,
+  body.fullscreen-mode .result-overlay-inner { max-width:none; width:100%; }
+  body.fullscreen-mode .quiz-wrap { margin-left:0; margin-right:0; }
+  body.fullscreen-mode { background:var(--paper); }
+  body.fullscreen-mode .masthead { padding-top:12px; }
 </style>
 </head>
 <body>
@@ -998,6 +1006,28 @@ function closeResult(){
   } else {
     setLoaderMsg('Connected to Supabase. Loaded paper will be saved there.', true);
   }
+})();
+</script>
+
+<script>
+(function(){
+  function toggleExamFullscreen(){
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(()=>{});
+      document.body.classList.add('fullscreen-mode');
+    } else {
+      document.exitFullscreen?.().catch(()=>{});
+      document.body.classList.remove('fullscreen-mode');
+    }
+  }
+  document.addEventListener('fullscreenchange', function(){
+    document.body.classList.toggle('fullscreen-mode', !!document.fullscreenElement);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key.toLowerCase()==='f' && !e.ctrlKey && !e.altKey && !e.metaKey && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) {
+      e.preventDefault(); toggleExamFullscreen();
+    }
+  });
 })();
 </script>
 </body>
