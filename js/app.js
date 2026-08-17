@@ -1051,13 +1051,20 @@ function goToQuestion(index){
 function renderQuestionPalette(){
   const palette = document.getElementById('questionPalette');
   const grid = document.getElementById('questionPaletteGrid');
+  const layout = document.querySelector('.test-layout');
   if (!palette || !grid) return;
   const cards = getQuestionCards();
-  if (!testStarted || !cards.length) {
-    palette.style.display = 'none';
+  const showPalette = !!testStarted && cards.length > 0;
+
+  // The question palette belongs ONLY to the active test screen.
+  // When the user is on Home / Load a Question Paper / Saved Projects,
+  // remove the palette and collapse the layout so it cannot leave a blank sidebar.
+  palette.style.display = showPalette ? '' : 'none';
+  if (layout) layout.classList.toggle('test-active', showPalette);
+  if (!showPalette) {
+    grid.innerHTML = '';
     return;
   }
-  palette.style.display = '';
   grid.innerHTML = '';
   cards.forEach((card, i) => {
     const b = document.createElement('button');
