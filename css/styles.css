@@ -457,6 +457,47 @@
     font-size:20px;
     font-family:var(--serif);
   }
+  .result-image{
+    display:block;
+    width:150px;
+    height:150px;
+    object-fit:contain;
+    margin:0 auto 8px;
+  }
+  .result-card.pass .result-image{
+    animation:resultPop .45s ease-out;
+  }
+  .result-card.fail .result-image{
+    animation:resultShake .45s ease-out;
+  }
+  .result-status{
+    display:inline-block;
+    padding:5px 14px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.08em;
+    margin-bottom:8px;
+  }
+  .result-card.pass .result-status{
+    color:#18733a;
+    background:#e8f7ed;
+  }
+  .result-card.fail .result-status{
+    color:#b42318;
+    background:#fdecec;
+  }
+  @keyframes resultPop{
+    0%{transform:scale(.75);opacity:0;}
+    70%{transform:scale(1.06);opacity:1;}
+    100%{transform:scale(1);}
+  }
+  @keyframes resultShake{
+    0%,100%{transform:translateX(0);}
+    25%{transform:translateX(-7px);}
+    50%{transform:translateX(7px);}
+    75%{transform:translateX(-4px);}
+  }
   .result-card .marks{
     font-size:34px;
     font-weight:800;

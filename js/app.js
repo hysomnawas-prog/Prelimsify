@@ -1193,7 +1193,18 @@ function finalizeResult(forcedNote){
   const pass = marks >= PASS_MARK;
 
   card.className = 'result-card ' + (pass ? 'pass' : 'fail');
-  document.getElementById('resultHeading').textContent = forcedNote ? forcedNote : 'Paper submitted';
+
+  const resultImage = document.getElementById('resultImage');
+  const resultStatus = document.getElementById('resultStatus');
+  if (resultImage) {
+    resultImage.src = pass ? 'assets/images/pass.png' : 'assets/images/fail.png';
+    resultImage.alt = pass ? 'Trophy - test passed' : 'Failed test result';
+  }
+  if (resultStatus) {
+    resultStatus.textContent = pass ? 'PASS' : 'FAIL';
+  }
+
+  document.getElementById('resultHeading').textContent = forcedNote ? forcedNote : (pass ? 'Congratulations! You cleared the test.' : 'Test not cleared');
   document.getElementById('resultMarks').textContent = marks.toFixed(2);
   document.getElementById('resultMarksSub').textContent = 'out of ' + maxMarks + ' (pass mark: ' + PASS_MARK + ')';
   document.getElementById('resultCorrect').textContent = correctCount;
