@@ -355,6 +355,15 @@ async function saveCurrentQuestionSet(){
     return;
   }
 
+  const defaultName = document.getElementById('titleText')?.textContent?.trim() || 'Question Set';
+  const projectName = window.prompt('Name this project:', defaultName);
+  if (projectName === null) return;
+  const cleanName = projectName.trim();
+  if (!cleanName){
+    setLoaderMsg('Project name cannot be empty.', false);
+    return;
+  }
+
   try{
     const { data: latest, error: latestError } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
@@ -367,6 +376,7 @@ async function saveCurrentQuestionSet(){
 
     const nextProject = latest && latest.length ? Number(latest[0].project_number) + 1 : 1;
     const projectPaper = makeProjectPaper();
+    projectPaper.title = cleanName;
 
     const { data, error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
@@ -384,7 +394,7 @@ async function saveCurrentQuestionSet(){
     savedProjects.push(data);
     savedProjects.sort((a,b) => a.project_number - b.project_number);
     renderSavedProjects();
-    setLoaderMsg(`Project ${nextProject} saved.`, true);
+    setLoaderMsg(`Project "${cleanName}" saved.`, true);
   }catch(e){
     console.error('Could not save project:', e);
     setLoaderMsg('Could not save project: ' + (e.message || e), false);
@@ -408,6 +418,44 @@ async function deleteSavedProject(id){
     setLoaderMsg('Project deleted.', true);
   }catch(e){
     setLoaderMsg('Could not delete project: ' + (e.message || e), false);
+  }
+}
+
+async function renameSavedProject(id){
+  if (!supabaseClient || !supabaseUser) return;
+
+  const row = savedProjects.find(p => p.id === id);
+  if (!row) return;
+
+  const currentName = row.paper?.title || `Project ${row.project_number}`;
+  const newName = window.prompt('Rename this project:', currentName);
+  if (newName === null) return;
+  const cleanName = newName.trim();
+  if (!cleanName){
+    setLoaderMsg('Project name cannot be empty.', false);
+    return;
+  }
+  if (cleanName === currentName) return;
+
+  try{
+    const updatedPaper = { ...(row.paper || {}), title: cleanName };
+    const { data, error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .update({ paper: updatedPaper })
+      .eq('user_id', supabaseUser.id)
+      .eq('id', id)
+      .select('id,user_id,project_number,paper,saved_at')
+      .single();
+
+    if (error) throw error;
+
+    const index = savedProjects.findIndex(p => p.id === id);
+    if (index !== -1) savedProjects[index] = data;
+    renderSavedProjects();
+    setLoaderMsg(`Project renamed to "${cleanName}".`, true);
+  }catch(e){
+    console.error('Could not rename project:', e);
+    setLoaderMsg('Could not rename project: ' + (e.message || e), false);
   }
 }
 
@@ -446,13 +494,25 @@ function renderSavedProjects(){
       }
     };
 
+    const actions = document.createElement('div');
+    actions.className = 'saved-actions';
+
+    const rename = document.createElement('button');
+    rename.className = 'saved-rename';
+    rename.type = 'button';
+    rename.textContent = 'Rename';
+    rename.onclick = () => renameSavedProject(row.id);
+
     const del = document.createElement('button');
     del.className = 'saved-delete';
+    del.type = 'button';
     del.textContent = 'Delete';
     del.onclick = () => deleteSavedProject(row.id);
 
+    actions.appendChild(rename);
+    actions.appendChild(del);
     wrap.appendChild(name);
-    wrap.appendChild(del);
+    wrap.appendChild(actions);
     list.appendChild(wrap);
   });
 }

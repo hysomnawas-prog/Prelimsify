@@ -244,15 +244,19 @@
   }
   .saved-question{font-family:var(--serif);font-size:12px;line-height:1.45;cursor:pointer;}
   .saved-question:hover{text-decoration:underline;}
+  .saved-actions{display:flex;gap:6px;align-items:center;}
+  .saved-rename,
   .saved-delete{
     border:1px solid var(--rule);
     background:#fff;
-    color:var(--red-line);
     font-family:var(--sans);
     font-size:10px;
     padding:5px 8px;
     cursor:pointer;
   }
+  .saved-rename{color:var(--ink);}
+  .saved-rename:hover{background:#f5f5f2;}
+  .saved-delete{color:var(--red-line);}
   .saved-delete:hover{background:#fdf0f0;}
 
   .scorebar{
