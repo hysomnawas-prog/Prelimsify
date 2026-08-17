@@ -172,7 +172,9 @@ function applyTextZoom(){
 }
 
 function changeTextZoom(delta){
-  const next = Math.min(TEXT_ZOOM_MAX, Math.max(TEXT_ZOOM_MIN, getTextZoom() + delta));
+  const current = getTextZoom();
+  const next = Math.min(TEXT_ZOOM_MAX, Math.max(TEXT_ZOOM_MIN, current + delta));
+  if (next === current) return;
   localStorage.setItem(TEXT_ZOOM_KEY, String(next));
   applyTextZoom();
 }
@@ -1217,9 +1219,33 @@ function closeResult(){
 document.getElementById('startTestBtn').addEventListener('click', showTest);
 const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
-if (zoomInBtn) zoomInBtn.addEventListener('click', () => changeTextZoom(TEXT_ZOOM_STEP));
-if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeTextZoom(-TEXT_ZOOM_STEP));
-applyTextZoom();
+
+function bindZoomControls(){
+  const inBtn = document.getElementById('zoomInBtn');
+  const outBtn = document.getElementById('zoomOutBtn');
+
+  if (inBtn && !inBtn.dataset.zoomBound) {
+    inBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      changeTextZoom(TEXT_ZOOM_STEP);
+    });
+    inBtn.dataset.zoomBound = '1';
+  }
+
+  if (outBtn && !outBtn.dataset.zoomBound) {
+    outBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      changeTextZoom(-TEXT_ZOOM_STEP);
+    });
+    outBtn.dataset.zoomBound = '1';
+  }
+
+  applyTextZoom();
+}
+
+bindZoomControls();
 
 document.getElementById('homeBtn').addEventListener('click', showHome);
 document.getElementById('pauseBtn').addEventListener('click', togglePauseTest);

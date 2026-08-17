@@ -656,8 +656,8 @@
 
 :root{--text-zoom:1;}
 
-/* User text-size zoom: applies to readable content while keeping controls usable. */
-.question-text, .question-stem, .question-body, .option, .options, .statement,
-#quizRoot, #quizRoot p, #quizRoot li{
-  font-size: calc(1em * var(--text-zoom));
+/* User zoom: scale the whole question content and let the browser
+   recalculate its layout. Controls/palette stay at their normal size. */
+#quizRoot{
+  zoom: var(--text-zoom);
 }
