@@ -149,6 +149,9 @@ let remaining = 120 * 60;
 let savedProjects = [];
 let testStarted = false;
 let testPaused = false;
+let currentQuestionIndex = 0;
+let questionVisited = [];
+let questionMarked = [];
 
 const TEXT_ZOOM_KEY = 'prelimsify_text_zoom';
 const TEXT_ZOOM_MIN = 80;
@@ -180,6 +183,9 @@ function changeTextZoom(delta){
 const SESSION_KEY = 'prelimsify_active_test_v1';
 let restoringSession = false;
 let restoredAnswers = {};
+let restoredVisited = [];
+let restoredMarked = [];
+let restoredCurrentQuestion = 0;
 
 function saveTestSession(){
   if (!testStarted || submitted || !Array.isArray(currentData) || !currentData.some(item => item.q)) return;
@@ -347,6 +353,9 @@ function resetTest(){
   timeUp = false;
   testPaused = false;
   submitted = false;
+  currentQuestionIndex = 0;
+  questionVisited = [];
+  questionMarked = [];
   clearTestSession();
   buildQuiz(false);
   window.scrollTo(0, 0);
@@ -877,7 +886,16 @@ function buildQuiz(restoreState = false){
 
   let qNum = 0;
   total = currentData.filter(d => d.q).length;
-  if (!restoreState) restoredAnswers = {};
+  if (!restoreState) {
+    restoredAnswers = {};
+    restoredVisited = [];
+    restoredMarked = [];
+    restoredCurrentQuestion = 0;
+  }
+  currentQuestionIndex = Math.min(Math.max(0, Number(restoredCurrentQuestion) || 0), Math.max(0, total - 1));
+  questionVisited = Array.from({length: total}, (_, i) => restoreState ? !!restoredVisited[i] : false);
+  questionMarked = Array.from({length: total}, (_, i) => restoreState ? !!restoredMarked[i] : false);
+  if (total) questionVisited[currentQuestionIndex] = true;
   const maxMarks = total * MARK_CORRECT;
   document.getElementById('totalCount').textContent = total;
   document.getElementById('maxMarksDisplay').textContent = maxMarks;
@@ -893,6 +911,7 @@ function buildQuiz(restoreState = false){
     qNum++;
     const card = document.createElement('div');
     card.className = 'qcard';
+    card.dataset.questionIndex = String(qNum - 1);
 
     const head = document.createElement('div');
     head.className = 'qhead';
@@ -918,6 +937,9 @@ function buildQuiz(restoreState = false){
 
       btn.onclick = () => {
         if (btn.classList.contains('locked') || timeUp || submitted) return;
+        const questionIndex = qNum - 1;
+        questionVisited[questionIndex] = true;
+        currentQuestionIndex = questionIndex;
         const allOpts = optsWrap.querySelectorAll('.opt');
         allOpts.forEach(o => o.classList.add('locked', 'dim'));
         btn.classList.remove('dim');
@@ -956,28 +978,103 @@ function buildQuiz(restoreState = false){
 
     card.appendChild(optsWrap);
     card.appendChild(fb);
+
+    const actions = document.createElement('div');
+    actions.className = 'question-actions';
+
+    const reviewBtn = document.createElement('button');
+    reviewBtn.type = 'button';
+    reviewBtn.className = 'btn review-btn';
+    reviewBtn.textContent = 'Mark for Review & Next';
+    reviewBtn.onclick = () => {
+      if (timeUp || submitted) return;
+      const questionIndex = qNum - 1;
+      questionVisited[questionIndex] = true;
+      questionMarked[questionIndex] = true;
+      goToQuestion(questionIndex + 1);
+      saveTestSession();
+    };
+
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'btn next-btn';
+    nextBtn.textContent = 'Save & Next';
+    nextBtn.onclick = () => {
+      if (timeUp || submitted) return;
+      const questionIndex = qNum - 1;
+      questionVisited[questionIndex] = true;
+      goToQuestion(questionIndex + 1);
+      saveTestSession();
+    };
+
+    actions.appendChild(reviewBtn);
+    actions.appendChild(nextBtn);
+    card.appendChild(actions);
     root.appendChild(card);
   });
+
+  if (restoreState) {
+    currentQuestionIndex = Math.min(Math.max(0, Number(restoredCurrentQuestion) || 0), Math.max(0, total - 1));
+    if (total) questionVisited[currentQuestionIndex] = true;
+  }
 
   updateScore();
   updatePauseUI();
   if (!testPaused) startTimer();
 }
 
+function getQuestionCards(){
+  return Array.from(document.querySelectorAll('#quizRoot .qcard'));
+}
+
+function getQuestionState(index){
+  const card = getQuestionCards()[index];
+  const hasAnswer = !!(card && card.querySelector('.opt[data-picked="1"]'));
+  const marked = !!questionMarked[index];
+  if (marked && hasAnswer) return 'answered-marked';
+  if (marked) return 'marked';
+  if (hasAnswer) return 'answered';
+  if (questionVisited[index]) return 'not-answered';
+  return 'not-visited';
+}
+
+function goToQuestion(index){
+  const cards = getQuestionCards();
+  if (!cards.length) return;
+  const target = Math.min(Math.max(0, Number(index) || 0), cards.length - 1);
+  currentQuestionIndex = target;
+  questionVisited[target] = true;
+  cards[target].scrollIntoView({behavior:'smooth', block:'start'});
+  renderQuestionPalette();
+}
+
 function renderQuestionPalette(){
-  const palette=document.getElementById('questionPalette'), grid=document.getElementById('questionPaletteGrid');
-  if(!palette||!grid)return;
-  if(!testStarted||!Array.isArray(currentData)||!currentData.length){palette.style.display='none';return;}
-  palette.style.display='';
-  grid.innerHTML='';
-  currentData.forEach((q,i)=>{
-    const b=document.createElement('button'); b.type='button'; b.className='palette-btn'; b.textContent=i+1;
-    if(answers&&answers[i]!==undefined&&answers[i]!==null&&answers[i]!=='') b.classList.add('answered');
-    if(i===currentQuestionIndex)b.classList.add('current');
-    b.addEventListener('click',()=>{if(testPaused||submitted||timeUp)return;currentQuestionIndex=i;renderQuestion();renderQuestionPalette();window.scrollTo({top:0,behavior:'smooth'});});
+  const palette = document.getElementById('questionPalette');
+  const grid = document.getElementById('questionPaletteGrid');
+  if (!palette || !grid) return;
+  const cards = getQuestionCards();
+  if (!testStarted || !cards.length) {
+    palette.style.display = 'none';
+    return;
+  }
+  palette.style.display = '';
+  grid.innerHTML = '';
+  cards.forEach((card, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'palette-btn ' + getQuestionState(i);
+    b.textContent = String(i + 1);
+    b.title = `Question ${i + 1}`;
+    if (i === currentQuestionIndex) b.classList.add('current');
+    b.addEventListener('click', () => {
+      if (testPaused || submitted || timeUp) return;
+      goToQuestion(i);
+      saveTestSession();
+    });
     grid.appendChild(b);
   });
 }
+
 function updateScore(){
   renderQuestionPalette();
   document.getElementById('answeredCount').textContent = answered;
