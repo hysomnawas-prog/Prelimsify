@@ -1076,6 +1076,22 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
   document.addEventListener('webkitfullscreenchange', syncFullscreenLayout);
   syncFullscreenLayout();
 
+  // Native fullscreen requires a user gesture. Enter it on the first
+  // interaction anywhere on the site, then F remains the manual toggle.
+  let firstInteractionFullscreenTried = false;
+  async function enterFullscreenOnFirstInteraction(){
+    if (firstInteractionFullscreenTried || document.fullscreenElement) return;
+    firstInteractionFullscreenTried = true;
+    await toggleSiteFullscreen();
+  }
+
+  document.addEventListener('pointerdown', enterFullscreenOnFirstInteraction, { once:true });
+  document.addEventListener('keydown', function firstKeyFullscreen(e){
+    if (e.key === 'F11' || e.key === 'F5' || e.key === 'Escape') return;
+    enterFullscreenOnFirstInteraction();
+    document.removeEventListener('keydown', firstKeyFullscreen);
+  }, { once:true });
+
   // F works from every website screen, not only while a test is running.
   // Escape is deliberately left to the browser's native fullscreen behavior.
   document.addEventListener('keydown', function(e){
