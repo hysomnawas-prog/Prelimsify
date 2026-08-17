@@ -180,6 +180,10 @@ function changeTextZoom(delta){
 const SESSION_KEY = 'prelimsify_active_test_v1';
 let restoringSession = false;
 let restoredAnswers = {};
+let paletteCurrentIndex = 0;
+let visitedQuestions = new Set();
+let markedQuestions = new Set();
+let selectedAnswers = {};
 
 function saveTestSession(){
   if (!testStarted || submitted || !Array.isArray(currentData) || !currentData.some(item => item.q)) return;
@@ -198,6 +202,9 @@ function saveTestSession(){
       remaining,
       paused: testPaused,
       answers,
+      visited: [...visitedQuestions],
+      marked: [...markedQuestions],
+      currentQuestionIndex: paletteCurrentIndex,
       timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120),
       savedAt: Date.now()
     }));
@@ -222,6 +229,10 @@ function restoreTestSession(){
     remaining = Math.max(0, Number(state.remaining) || 0);
     testPaused = !!state.paused;
     restoredAnswers = state.answers || {};
+    selectedAnswers = {...restoredAnswers};
+    visitedQuestions = new Set(Array.isArray(state.visited) ? state.visited.map(Number) : []);
+    markedQuestions = new Set(Array.isArray(state.marked) ? state.marked.map(Number) : []);
+    paletteCurrentIndex = Math.max(0, Number(state.currentQuestionIndex) || 0);
     restoringSession = true;
     testStarted = true;
     setTestPaletteVisibility(true);
@@ -255,6 +266,10 @@ async function showTest(){
   testStarted = true;
   setTestPaletteVisibility(true);
   testPaused = false;
+  paletteCurrentIndex = 0;
+  visitedQuestions = new Set([0]);
+  markedQuestions = new Set();
+  selectedAnswers = {};
   document.getElementById('homeScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('active');
   window.scrollTo(0, 0);
@@ -297,6 +312,10 @@ function exitTestToUploadPage(){
   clearTestSession();
 
   currentData = [];
+  paletteCurrentIndex = 0;
+  visitedQuestions = new Set();
+  markedQuestions = new Set();
+  selectedAnswers = {};
   document.getElementById('homeScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('active');
   document.getElementById('resultOverlay').classList.remove('open');
@@ -359,6 +378,10 @@ function resetTest(){
   testPaused = false;
   submitted = false;
   clearTestSession();
+  paletteCurrentIndex = 0;
+  visitedQuestions = new Set([0]);
+  markedQuestions = new Set();
+  selectedAnswers = {};
   buildQuiz(false);
   window.scrollTo(0, 0);
 }
@@ -568,7 +591,19 @@ function renderSavedProjects(){
     name.onclick = () => {
       try{
         applyProjectPaper(row.paper);
-        buildQuiz();
+        testStarted = true;
+        testPaused = false;
+        submitted = false;
+        timeUp = false;
+        paletteCurrentIndex = 0;
+        visitedQuestions = new Set([0]);
+        markedQuestions = new Set();
+        selectedAnswers = {};
+        clearTestSession();
+        setTestPaletteVisibility(true);
+        document.getElementById('homeScreen').style.display = 'none';
+        document.getElementById('appShell').classList.add('active');
+        buildQuiz(false);
         closeLoaderIfOpen();
         window.scrollTo({top:0, behavior:'smooth'});
         setLoaderMsg(`Loaded Project ${row.project_number}.`, true);
@@ -906,6 +941,15 @@ function buildQuiz(restoreState = false){
     qNum++;
     const card = document.createElement('div');
     card.className = 'qcard';
+    const questionIndex = qNum - 1;
+    card.dataset.questionIndex = String(questionIndex);
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('button')) return;
+      paletteCurrentIndex = questionIndex;
+      visitedQuestions.add(questionIndex);
+      renderQuestionPalette();
+      saveTestSession();
+    });
 
     const head = document.createElement('div');
     head.className = 'qhead';
@@ -935,6 +979,9 @@ function buildQuiz(restoreState = false){
         allOpts.forEach(o => o.classList.add('locked', 'dim'));
         btn.classList.remove('dim');
         btn.dataset.picked = '1';
+        selectedAnswers[questionIndex] = letter;
+        visitedQuestions.add(questionIndex);
+        paletteCurrentIndex = questionIndex;
 
         answered++;
         if (letter === item.a){
@@ -963,12 +1010,55 @@ function buildQuiz(restoreState = false){
     });
 
     if (restoreState && restoredAnswers[qNum]) {
-      const picked = optsWrap.querySelector(`.opt[data-letter=\"${restoredAnswers[qNum]}\"]`);
-      if (picked && typeof picked.onclick === 'function') picked.onclick();
+      const letter = restoredAnswers[qNum];
+      const picked = optsWrap.querySelector(`.opt[data-letter=\"${letter}\"]`);
+      if (picked) {
+        picked.dataset.picked = '1';
+        picked.classList.add('selected');
+        optsWrap.querySelectorAll('.opt').forEach(o => { if (o !== picked) o.classList.add('locked','dim'); });
+        selectedAnswers[questionIndex] = letter;
+        visitedQuestions.add(questionIndex);
+        if (letter === item.a) {
+          picked.classList.add('correct');
+          fb.textContent = `Correct. +${MARK_CORRECT.toFixed(2)}`;
+          fb.className = 'feedback right';
+          answered++; correctCount++; marks += MARK_CORRECT;
+        } else {
+          picked.classList.add('wrong');
+          optsWrap.querySelectorAll('.opt').forEach(o => { if (o.dataset.letter === item.a) { o.classList.remove('dim'); o.classList.add('correct'); }});
+          fb.textContent = `Incorrect — correct answer is ${item.a}. ${MARK_WRONG.toFixed(2)}`;
+          fb.className = 'feedback wrong';
+          answered++; wrongCount++; marks += MARK_WRONG;
+        }
+      }
     }
+
+    const controls = document.createElement('div');
+    controls.className = 'question-controls';
+    const markBtn = document.createElement('button');
+    markBtn.type = 'button';
+    markBtn.className = 'question-control mark-review-btn';
+    markBtn.textContent = markedQuestions.has(questionIndex) ? 'Unmark for Review' : 'Mark for Review';
+    markBtn.addEventListener('click', () => {
+      if (markedQuestions.has(questionIndex)) markedQuestions.delete(questionIndex);
+      else markedQuestions.add(questionIndex);
+      visitedQuestions.add(questionIndex);
+      paletteCurrentIndex = questionIndex;
+      markBtn.textContent = markedQuestions.has(questionIndex) ? 'Unmark for Review' : 'Mark for Review';
+      renderQuestionPalette();
+      saveTestSession();
+    });
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'question-control clear-response-btn';
+    clearBtn.textContent = 'Clear Response';
+    clearBtn.addEventListener('click', () => clearQuestionResponse(questionIndex));
+    controls.appendChild(markBtn);
+    controls.appendChild(clearBtn);
 
     card.appendChild(optsWrap);
     card.appendChild(fb);
+    card.appendChild(controls);
     root.appendChild(card);
   });
 
@@ -978,19 +1068,67 @@ function buildQuiz(restoreState = false){
 }
 
 function renderQuestionPalette(){
-  const palette=document.getElementById('questionPalette'), grid=document.getElementById('questionPaletteGrid');
-  if(!palette||!grid)return;
-  if(!testStarted||!Array.isArray(currentData)||!currentData.length){palette.style.display='none';return;}
-  palette.style.display='';
-  grid.innerHTML='';
-  currentData.forEach((q,i)=>{
-    const b=document.createElement('button'); b.type='button'; b.className='palette-btn'; b.textContent=i+1;
-    if(answers&&answers[i]!==undefined&&answers[i]!==null&&answers[i]!=='') b.classList.add('answered');
-    if(i===currentQuestionIndex)b.classList.add('current');
-    b.addEventListener('click',()=>{if(testPaused||submitted||timeUp)return;currentQuestionIndex=i;renderQuestion();renderQuestionPalette();window.scrollTo({top:0,behavior:'smooth'});});
+  const palette = document.getElementById('questionPalette');
+  const grid = document.getElementById('questionPaletteGrid');
+  if (!palette || !grid) return;
+  if (!testStarted || !Array.isArray(currentData) || !currentData.some(item => item.q)) {
+    palette.style.display = 'none';
+    return;
+  }
+  palette.style.display = '';
+  const cards = [...document.querySelectorAll('.qcard')];
+  grid.innerHTML = '';
+  cards.forEach((card, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'palette-btn';
+    b.textContent = String(i + 1);
+    const answeredState = !!selectedAnswers[i] || !!card.querySelector('.opt[data-picked="1"]');
+    const markedState = markedQuestions.has(i);
+    const visitedState = visitedQuestions.has(i);
+    if (answeredState && markedState) b.classList.add('answered-marked');
+    else if (answeredState) b.classList.add('answered');
+    else if (markedState) b.classList.add('marked');
+    else if (!visitedState) b.classList.add('not-visited');
+    else b.classList.add('not-answered');
+    if (i === paletteCurrentIndex) b.classList.add('current');
+    b.title = `Question ${i + 1}`;
+    b.addEventListener('click', () => {
+      if (testPaused || submitted || timeUp) return;
+      paletteCurrentIndex = i;
+      visitedQuestions.add(i);
+      const target = cards[i];
+      if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+      renderQuestionPalette();
+      saveTestSession();
+    });
     grid.appendChild(b);
   });
 }
+
+function clearQuestionResponse(index){
+  const cards = [...document.querySelectorAll('.qcard')];
+  const card = cards[index];
+  if (!card || !selectedAnswers[index]) return;
+  const letter = selectedAnswers[index];
+  const item = currentData.filter(d => d.q)[index];
+  if (letter === item.a){ correctCount--; marks -= MARK_CORRECT; }
+  else { wrongCount--; marks -= MARK_WRONG; }
+  answered--;
+  delete selectedAnswers[index];
+  const opts = card.querySelectorAll('.opt');
+  opts.forEach(o => {
+    o.classList.remove('locked','dim','correct','wrong','selected');
+    delete o.dataset.picked;
+  });
+  const fb = card.querySelector('.feedback');
+  if (fb){ fb.textContent = ''; fb.className = 'feedback'; }
+  paletteCurrentIndex = index;
+  visitedQuestions.add(index);
+  updateScore();
+  saveTestSession();
+}
+
 function updateScore(){
   renderQuestionPalette();
   document.getElementById('answeredCount').textContent = answered;
