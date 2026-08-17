@@ -87,11 +87,20 @@ D. 1, 2 and 3
   <span class="score">Marks: <span class="num" id="scoreCount">0.00</span>/<span id="maxMarksDisplay">200</span></span>
   <span class="score-actions">
     <button class="btn secondary" id="homeBtn" type="button">Home</button>
+    <button class="btn secondary" id="pauseBtn" type="button">Pause</button>
     <button class="btn secondary" id="exitTestBtn" type="button">Exit Test</button>
     <button class="btn secondary" id="resetBtn" type="button">Reset</button>
   </span>
 </div>
 <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+<div class="pause-overlay" id="pauseOverlay" aria-hidden="true">
+  <div class="pause-card">
+    <h2>Test Paused</h2>
+    <p>The timer is paused. Resume when you are ready to continue.</p>
+    <button class="btn" id="resumeTestBtn" type="button">Resume Test</button>
+  </div>
+</div>
 
 <div class="container" id="quizRoot"></div>
 

@@ -583,3 +583,39 @@
   body.fullscreen-mode #appShell.active { width:100vw !important; min-width:100vw !important; max-width:none !important; }
   body.fullscreen-mode #homeScreen { min-height:100vh !important; }
   body.fullscreen-mode #appShell.active { min-height:100vh !important; }
+
+
+/* Test pause overlay */
+.pause-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index:1000000;
+  background:rgba(0,0,0,.62);
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  box-sizing:border-box;
+}
+.pause-overlay.open{display:flex;}
+.pause-card{
+  width:min(440px, 92vw);
+  box-sizing:border-box;
+  background:#fff;
+  border:1px solid #bbb;
+  padding:32px;
+  text-align:center;
+  box-shadow:0 12px 40px rgba(0,0,0,.28);
+}
+.pause-card h2{
+  margin:0 0 10px;
+  font-family:var(--serif);
+}
+.pause-card p{
+  margin:0 0 22px;
+  color:var(--ink-soft);
+  font-size:14px;
+}
+.scorebar.test-paused .timer{
+  opacity:.65;
+}

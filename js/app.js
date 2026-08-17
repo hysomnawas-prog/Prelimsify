@@ -148,6 +148,7 @@ let timerInterval = null;
 let remaining = 120 * 60;
 let savedProjects = [];
 let testStarted = false;
+let testPaused = false;
 const SESSION_KEY = 'prelimsify_active_test_v1';
 let restoringSession = false;
 let restoredAnswers = {};
@@ -167,6 +168,7 @@ function saveTestSession(){
       markWrong: MARK_WRONG,
       passMark: PASS_MARK,
       remaining,
+      paused: testPaused,
       answers,
       timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120),
       savedAt: Date.now()
@@ -190,6 +192,7 @@ function restoreTestSession(){
     MARK_WRONG = Number(state.markWrong ?? -0.66);
     PASS_MARK = Number(state.passMark ?? 120);
     remaining = Math.max(0, Number(state.remaining) || 0);
+    testPaused = !!state.paused;
     restoredAnswers = state.answers || {};
     restoringSession = true;
     testStarted = true;
@@ -214,6 +217,7 @@ function restoreTestSession(){
 
 async function showTest(){
   testStarted = true;
+  testPaused = false;
   document.getElementById('homeScreen').style.display = 'none';
   document.getElementById('appShell').classList.add('active');
   window.scrollTo(0, 0);
@@ -236,6 +240,7 @@ function showHome(){
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
   testStarted = false;
+  testPaused = false;
   clearTestSession();
   document.getElementById('appShell').classList.remove('active');
   document.getElementById('homeScreen').style.display = 'flex';
@@ -247,6 +252,7 @@ function exitTestToUploadPage(){
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
   testStarted = false;
+  testPaused = false;
   submitted = false;
   timeUp = false;
   clearTestSession();
@@ -264,6 +270,43 @@ function exitTestToUploadPage(){
   setLoaderMsg('Test exited. Choose or upload a question set to start a new test.', true);
 }
 
+
+function updatePauseUI(){
+  const overlay = document.getElementById('pauseOverlay');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const scorebar = document.querySelector('.scorebar');
+  if (overlay){
+    overlay.classList.toggle('open', testPaused);
+    overlay.setAttribute('aria-hidden', testPaused ? 'false' : 'true');
+  }
+  if (pauseBtn){
+    pauseBtn.textContent = testPaused ? 'Resume' : 'Pause';
+    pauseBtn.setAttribute('aria-pressed', testPaused ? 'true' : 'false');
+  }
+  if (scorebar) scorebar.classList.toggle('test-paused', testPaused);
+}
+
+function pauseTest(){
+  if (!testStarted || submitted || timeUp || testPaused) return;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  testPaused = true;
+  saveTestSession();
+  updatePauseUI();
+}
+
+function resumeTest(){
+  if (!testStarted || submitted || timeUp || !testPaused) return;
+  testPaused = false;
+  updatePauseUI();
+  startTimer();
+}
+
+function togglePauseTest(){
+  if (testPaused) resumeTest();
+  else pauseTest();
+}
+
 function resetTest(){
   if (!testStarted) return;
   if (!confirm('Reset this test? All answers and your current score will be cleared.')) return;
@@ -274,6 +317,7 @@ function resetTest(){
   const mins = Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120);
   remaining = Math.round(mins * 60);
   timeUp = false;
+  testPaused = false;
   submitted = false;
   clearTestSession();
   buildQuiz(false);
@@ -779,6 +823,7 @@ function buildQuiz(restoreState = false){
   document.getElementById('submitBar').style.display = 'none';
   document.getElementById('submitBtn').disabled = true;
   document.getElementById('submitBtn').textContent = 'Submit Paper';
+  updatePauseUI();
 
   if (!Array.isArray(currentData) || !currentData.some(item => item.q)){
     // No active test: hide all test-only UI and leave only the question-set loader.
@@ -887,7 +932,8 @@ function buildQuiz(restoreState = false){
   });
 
   updateScore();
-  startTimer();
+  updatePauseUI();
+  if (!testPaused) startTimer();
 }
 
 function updateScore(){
@@ -904,6 +950,8 @@ function formatTime(s){
 }
 
 function startTimer(){
+  if (testPaused || !testStarted || submitted || timeUp) return;
+  if (timerInterval) clearInterval(timerInterval);
   const timerEl = document.getElementById('timerDisplay');
   timerEl.classList.remove('low');
   timerEl.textContent = formatTime(remaining);
@@ -974,6 +1022,8 @@ function closeResult(){
 // UI controls
 document.getElementById('startTestBtn').addEventListener('click', showTest);
 document.getElementById('homeBtn').addEventListener('click', showHome);
+document.getElementById('pauseBtn').addEventListener('click', togglePauseTest);
+document.getElementById('resumeTestBtn').addEventListener('click', resumeTest);
 document.getElementById('exitTestBtn').addEventListener('click', exitTestToUploadPage);
 document.getElementById('resetBtn').addEventListener('click', resetTest);
 document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
