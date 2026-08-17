@@ -789,12 +789,8 @@ function buildQuiz(restoreState = false){
     document.getElementById('scoreCount').textContent = '0.00';
     document.getElementById('answeredCount').textContent = '0';
     document.getElementById('progressFill').style.width = '0%';
-    root.innerHTML = `
-      <div style="max-width:720px;margin:70px auto;text-align:center;font-family:var(--sans);padding:30px;border:1px solid #bbb;background:#fff;">
-        <h2 style="font-family:var(--serif);margin:0 0 10px;">No question paper selected</h2>
-        <p style="margin:0 0 18px;color:var(--ink-soft);font-size:13px;">Use “Load a question paper ▾” to choose or upload a question set from Saved Projects.</p>
-        <button class="btn" type="button" onclick="toggleLoader()">Open Saved Projects</button>
-      </div>`;
+    // Keep the question area empty on the Load a question paper page.
+    root.innerHTML = '';
     return;
   }
 
