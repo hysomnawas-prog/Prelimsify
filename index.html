@@ -87,6 +87,11 @@ D. 1, 2 and 3
   <span class="score">Marks: <span class="num" id="scoreCount">0.00</span>/<span id="maxMarksDisplay">200</span></span>
   <span class="score-actions">
     <button class="btn secondary" id="homeBtn" type="button">Home</button>
+    <div class="zoom-controls" aria-label="Text size controls">
+      <button class="icon-btn" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+      <span class="zoom-label" id="zoomPercent">100%</span>
+      <button class="icon-btn" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+    </div>
     <button class="btn secondary" id="pauseBtn" type="button">Pause</button>
     <button class="btn secondary" id="exitTestBtn" type="button">Exit Test</button>
     <button class="btn secondary" id="resetBtn" type="button">Reset</button>
@@ -102,7 +107,16 @@ D. 1, 2 and 3
   </div>
 </div>
 
-<div class="container" id="quizRoot"></div>
+<div class="test-layout">
+  <div class="test-main"><div class="container" id="quizRoot"></div></div>
+  <aside class="question-palette" id="questionPalette">
+    <div class="palette-title">Question Palette</div>
+    <div class="palette-legend">
+      <span>■ Answered</span><span>□ Unanswered</span><span>▣ Current</span>
+    </div>
+    <div class="palette-grid" id="questionPaletteGrid"></div>
+  </aside>
+</div>
 
 <div class="submit-bar" id="submitBar" style="display:none;">
   <button class="btn" id="submitBtn" onclick="submitPaper()">Submit Paper</button>

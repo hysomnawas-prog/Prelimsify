@@ -149,6 +149,34 @@ let remaining = 120 * 60;
 let savedProjects = [];
 let testStarted = false;
 let testPaused = false;
+
+const TEXT_ZOOM_KEY = 'prelimsify_text_zoom';
+const TEXT_ZOOM_MIN = 80;
+const TEXT_ZOOM_MAX = 140;
+const TEXT_ZOOM_STEP = 10;
+
+function getTextZoom(){
+  const n = Number(localStorage.getItem(TEXT_ZOOM_KEY));
+  return Number.isFinite(n) ? Math.min(TEXT_ZOOM_MAX, Math.max(TEXT_ZOOM_MIN, n)) : 100;
+}
+
+function applyTextZoom(){
+  const zoom = getTextZoom();
+  document.documentElement.style.setProperty('--text-zoom', `${zoom / 100}`);
+  const label = document.getElementById('zoomPercent');
+  if (label) label.textContent = `${zoom}%`;
+  const out = document.getElementById('zoomOutBtn');
+  const inn = document.getElementById('zoomInBtn');
+  if (out) out.disabled = zoom <= TEXT_ZOOM_MIN;
+  if (inn) inn.disabled = zoom >= TEXT_ZOOM_MAX;
+}
+
+function changeTextZoom(delta){
+  const next = Math.min(TEXT_ZOOM_MAX, Math.max(TEXT_ZOOM_MIN, getTextZoom() + delta));
+  localStorage.setItem(TEXT_ZOOM_KEY, String(next));
+  applyTextZoom();
+}
+
 const SESSION_KEY = 'prelimsify_active_test_v1';
 let restoringSession = false;
 let restoredAnswers = {};
@@ -936,7 +964,22 @@ function buildQuiz(restoreState = false){
   if (!testPaused) startTimer();
 }
 
+function renderQuestionPalette(){
+  const palette=document.getElementById('questionPalette'), grid=document.getElementById('questionPaletteGrid');
+  if(!palette||!grid)return;
+  if(!testStarted||!Array.isArray(currentData)||!currentData.length){palette.style.display='none';return;}
+  palette.style.display='';
+  grid.innerHTML='';
+  currentData.forEach((q,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='palette-btn'; b.textContent=i+1;
+    if(answers&&answers[i]!==undefined&&answers[i]!==null&&answers[i]!=='') b.classList.add('answered');
+    if(i===currentQuestionIndex)b.classList.add('current');
+    b.addEventListener('click',()=>{if(testPaused||submitted||timeUp)return;currentQuestionIndex=i;renderQuestion();renderQuestionPalette();window.scrollTo({top:0,behavior:'smooth'});});
+    grid.appendChild(b);
+  });
+}
 function updateScore(){
+  renderQuestionPalette();
   document.getElementById('answeredCount').textContent = answered;
   document.getElementById('scoreCount').textContent = marks.toFixed(2);
   document.getElementById('progressFill').style.width = (total ? (answered/total*100) : 0) + '%';
@@ -1021,6 +1064,12 @@ function closeResult(){
 
 // UI controls
 document.getElementById('startTestBtn').addEventListener('click', showTest);
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+if (zoomInBtn) zoomInBtn.addEventListener('click', () => changeTextZoom(TEXT_ZOOM_STEP));
+if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => changeTextZoom(-TEXT_ZOOM_STEP));
+applyTextZoom();
+
 document.getElementById('homeBtn').addEventListener('click', showHome);
 document.getElementById('pauseBtn').addEventListener('click', togglePauseTest);
 document.getElementById('resumeTestBtn').addEventListener('click', resumeTest);
