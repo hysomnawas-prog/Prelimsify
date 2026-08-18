@@ -143,7 +143,7 @@ let submitted = false;
 let total = 0;
 let MARK_CORRECT = 2;
 let MARK_WRONG = -0.66;
-let PASS_MARK = 120;
+let PASS_PERCENT = 60;
 let timerInterval = null;
 let remaining = 120 * 60;
 let savedProjects = [];
@@ -200,7 +200,7 @@ function saveTestSession(){
       currentData,
       markCorrect: MARK_CORRECT,
       markWrong: MARK_WRONG,
-      passMark: PASS_MARK,
+      passPercent: PASS_PERCENT,
       remaining,
       paused: testPaused,
       answers,
@@ -227,7 +227,7 @@ function restoreTestSession(){
     currentData = state.currentData;
     MARK_CORRECT = Number(state.markCorrect ?? 2);
     MARK_WRONG = Number(state.markWrong ?? -0.66);
-    PASS_MARK = Number(state.passMark ?? 120);
+    PASS_PERCENT = Number(state.passPercent ?? 60);
     remaining = Math.max(0, Number(state.remaining) || 0);
     testPaused = !!state.paused;
     restoredAnswers = state.answers || {};
@@ -243,7 +243,7 @@ function restoreTestSession(){
     document.getElementById('timeLimitInput').value = Math.max(1, Number(state.timeLimitMins) || 120);
     document.getElementById('markCorrectInput').value = MARK_CORRECT;
     document.getElementById('markWrongInput').value = MARK_WRONG;
-    document.getElementById('passMarkInput').value = PASS_MARK;
+    document.getElementById('passMarkInput').value = PASS_PERCENT;
     buildQuiz(true);
     restoringSession = false;
     restoredAnswers = {};
@@ -426,7 +426,7 @@ function makeProjectPaper(){
     questions: currentData,
     markCorrect: MARK_CORRECT,
     markWrong: MARK_WRONG,
-    passMark: PASS_MARK,
+    passPercent: PASS_PERCENT,
     timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120)
   };
 }
@@ -443,14 +443,14 @@ function applyProjectPaper(projectPaper){
   currentData = questions;
   MARK_CORRECT = Number(payload.markCorrect ?? 2);
   MARK_WRONG = Number(payload.markWrong ?? -0.66);
-  PASS_MARK = Number(payload.passMark ?? 120);
+  PASS_PERCENT = Number(payload.passPercent ?? 60);
 
   const mins = Number(payload.timeLimitMins ?? 120);
   remaining = Math.round(Math.max(1, mins) * 60);
   document.getElementById('timeLimitInput').value = Math.max(1, mins);
   document.getElementById('markCorrectInput').value = MARK_CORRECT;
   document.getElementById('markWrongInput').value = MARK_WRONG;
-  document.getElementById('passMarkInput').value = PASS_MARK;
+  document.getElementById('passMarkInput').value = PASS_PERCENT;
 }
 
 async function saveCurrentQuestionSet(){
@@ -730,11 +730,11 @@ function loadQuestionSet(parsed, successMessage){
   const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
   const mc = parseFloat(document.getElementById('markCorrectInput').value);
   const mw = parseFloat(document.getElementById('markWrongInput').value);
-  const pm = parseFloat(document.getElementById('passMarkInput').value);
+  const pp = parseFloat(document.getElementById('passMarkInput').value);
 
   MARK_CORRECT = isNaN(mc) ? 2 : mc;
   MARK_WRONG = isNaN(mw) ? -0.66 : mw;
-  PASS_MARK = isNaN(pm) ? 120 : pm;
+  PASS_PERCENT = isNaN(pp) ? 60 : Math.min(100, Math.max(0, pp));
   remaining = Math.round(mins * 60);
   currentData = parsed;
   buildQuiz();
@@ -851,7 +851,7 @@ async function moveBuiltInPaperToSavedProjects(){
             questions: defaultQuestions,
             markCorrect: 2,
             markWrong: -0.66,
-            passMark: 120,
+            passPercent: 60,
             timeLimitMins: 120
           },
           saved_at: new Date().toISOString()
@@ -1190,7 +1190,8 @@ function finalizeResult(forcedNote){
   const unanswered = total - answered;
   const maxMarks = total * MARK_CORRECT;
   const card = document.getElementById('resultCard');
-  const pass = marks >= PASS_MARK;
+  const passMark = maxMarks * (PASS_PERCENT / 100);
+   const pass = marks >= passMark;
 
   card.className = 'result-card ' + (pass ? 'pass' : 'fail');
 
@@ -1206,7 +1207,7 @@ function finalizeResult(forcedNote){
 
   document.getElementById('resultHeading').textContent = forcedNote ? forcedNote : (pass ? 'Congratulations! You cleared the test.' : 'Test not cleared');
   document.getElementById('resultMarks').textContent = marks.toFixed(2);
-  document.getElementById('resultMarksSub').textContent = 'out of ' + maxMarks + ' (pass mark: ' + PASS_MARK + ')';
+  document.getElementById('resultMarksSub').textContent = 'out of ' + maxMarks + ' (pass mark: ' + PASS_PERCENT + '% = ' + passMark.toFixed(2) + ')';
   document.getElementById('resultCorrect').textContent = correctCount;
   document.getElementById('resultWrong').textContent = wrongCount;
   document.getElementById('resultUnanswered').textContent = unanswered;
@@ -1215,8 +1216,8 @@ function finalizeResult(forcedNote){
   if (pass){
     msgEl.textContent = "Congratulations! That's a solid score — you're clearing the bar comfortably. Keep this consistency going into the next mock.";
   } else {
-    const gap = (PASS_MARK - marks).toFixed(2);
-    msgEl.textContent = `Not quite there this time — you're ${gap} marks short of ${PASS_MARK}. That's closeable with focused revision. Look at where the wrong answers came from and go again.`;
+    const gap = (passMark - marks).toFixed(2);
+    msgEl.textContent = `Not quite there this time — you're ${gap} marks short of the ${PASS_PERCENT}% passing mark. That's closeable with focused revision. Look at where the wrong answers came from and go again.`;
   }
 
   document.getElementById('resultOverlay').classList.add('open');
