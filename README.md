@@ -13,3 +13,7 @@ The application currently supports JSON and both supported `.hysom` text formats
 ## Running
 
 For local development, serve this folder through a local HTTP server rather than opening `index.html` directly. This is especially useful for native browser fullscreen and Supabase authentication.
+
+## Supabase database security
+
+See `supabase_schema.sql` for the complete schema and RLS policies, and `SUPABASE_SETUP.md` for setup instructions.
