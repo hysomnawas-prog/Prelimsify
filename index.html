@@ -16,12 +16,9 @@
       </div>
       <nav class="side-nav">
         <button class="side-nav-item active" type="button" data-dashboard-nav="home"><span class="nav-icon">⌂</span><span>Home</span></button>
-        <button class="side-nav-item" type="button" data-dashboard-nav="library"><span class="nav-icon">▢</span><span>Library</span></button>
-        <button class="side-nav-item" type="button" data-dashboard-nav="homework"><span class="nav-icon">☷</span><span>Homework</span></button>
         <button class="side-nav-item" type="button" data-dashboard-nav="exams"><span class="nav-icon">◇</span><span>Exams</span></button>
         <button class="side-nav-item" type="button" data-dashboard-nav="performance"><span class="nav-icon">▥</span><span>Performance</span></button>
         <button class="side-nav-item" type="button" data-dashboard-nav="saved"><span class="nav-icon">□</span><span>Saved Papers</span></button>
-        <button class="side-nav-item" type="button" data-dashboard-nav="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
       </nav>
       <button class="side-logout" type="button" data-dashboard-nav="logout"><span class="nav-icon">↪</span><span>Logout</span></button>
     </aside>
@@ -41,27 +38,7 @@
       <section class="pending-card">
         <div class="pending-header"><span>Pending Work</span><button type="button" class="collapse-btn" aria-label="Collapse pending work">⌃</button></div>
         <div class="pending-list" id="dashboardPendingList">
-          <article class="pending-item">
-            <div class="pending-icon maths-icon">＋</div>
-            <div class="pending-details">
-              <div class="pending-title-row"><strong>Maths Homework</strong><span>Chp 2</span></div>
-              <div class="pending-meta"><span><small>Assigned</small>30 Dec '19</span><span><small>Due On</small>02 Jan '20</span><span><small>Time</small>30 mins</span></div>
-            </div>
-          </article>
-          <article class="pending-item">
-            <div class="pending-icon english-icon">Aa</div>
-            <div class="pending-details">
-              <div class="pending-title-row"><strong>English Qn paper</strong><span>Chp 2, Chp 3</span></div>
-              <div class="pending-meta"><span><small>Assigned</small>30 Dec '19</span><span><small>Due On</small>02 Jan '20</span><span><small>Marks</small>50</span><span><small>Duration</small>1hr 30mins</span></div>
-            </div>
-          </article>
-          <article class="pending-item dashboard-project-item" id="dashboardProjectTemplate" hidden>
-            <div class="pending-icon project-icon">✓</div>
-            <div class="pending-details">
-              <div class="pending-title-row"><strong class="project-title"></strong><span class="project-chapter">Question Set</span></div>
-              <div class="pending-meta"><span><small>Questions</small><span class="project-count"></span></span><span><small>Pass Mark</small>60%</span><span><small>Time</small><span class="project-time"></span></span></div>
-            </div>
-          </article>
+          <div class="dashboard-empty-state">No unfinished tests. Start a test and it will appear here until submitted.</div>
         </div>
         <button class="view-more-btn" id="dashboardViewMore" type="button">View More</button>
       </section>
@@ -72,6 +49,11 @@
         <button class="stack-tab exams" type="button" data-dashboard-nav="exams"><span>Exams</span><span>⌃</span></button>
       </section>
 
+      <section class="dashboard-performance-panel" id="dashboardPerformancePanel" hidden>
+        <div class="performance-panel-header"><strong>Grade History</strong><span>Your completed tests</span></div>
+        <div id="dashboardPerformanceList" class="performance-history-list"></div>
+      </section>
+
       <div class="dashboard-actions-card">
         <div class="quick-action-copy"><strong>Ready for a test?</strong><span>Load a question set or start the built-in paper.</span></div>
         <button class="btn dashboard-start-btn" id="startTestBtn" type="button">Start Test</button>
@@ -80,10 +62,10 @@
 
     <nav class="dashboard-bottom-nav" aria-label="Mobile navigation">
       <button type="button" class="bottom-nav-item active" data-dashboard-nav="home"><span>⌂</span><small>Home</small></button>
-      <button type="button" class="bottom-nav-item" data-dashboard-nav="library"><span>▢</span><small>Library</small></button>
+      <button type="button" class="bottom-nav-item" data-dashboard-nav="performance"><span>▥</span><small>Performance</small></button>
       <button type="button" class="scan-button" data-dashboard-nav="scan" aria-label="Scan or load question paper">⌾</button>
-      <button type="button" class="bottom-nav-item" data-dashboard-nav="homework"><span>☷</span><small>Homework</small></button>
-      <button type="button" class="bottom-nav-item" data-dashboard-nav="more"><span>⊞</span><small>More</small></button>
+      <button type="button" class="bottom-nav-item" data-dashboard-nav="exams"><span>◇</span><small>Exams</small></button>
+      <button type="button" class="bottom-nav-item" data-dashboard-nav="more"><span>□</span><small>Saved</small></button>
     </nav>
   </div>
 </div>

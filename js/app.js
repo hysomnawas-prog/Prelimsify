@@ -180,6 +180,50 @@ function changeTextZoom(delta){
 }
 
 const SESSION_KEY = 'prelimsify_active_test_v1';
+const HISTORY_KEY = 'prelimsify_test_history_v1';
+
+function getTestHistory(){
+  try{
+    const raw = localStorage.getItem(HISTORY_KEY);
+    const rows = raw ? JSON.parse(raw) : [];
+    return Array.isArray(rows) ? rows : [];
+  }catch(e){ return []; }
+}
+
+function saveTestHistory(entry){
+  try{
+    const rows = getTestHistory();
+    rows.unshift(entry);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(0, 100)));
+  }catch(e){ console.warn('Could not save test history:', e); }
+}
+
+function dashboardTestTitle(){
+  return document.getElementById('titleText')?.textContent?.trim() || 'Question Set';
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function renderDashboardPerformance(reveal=true){
+  const list=document.getElementById('dashboardPerformanceList');
+  const panel=document.getElementById('dashboardPerformancePanel');
+  if(!list || !panel) return;
+  if (reveal) panel.hidden=false;
+  const rows=getTestHistory();
+  if(!rows.length){
+    list.innerHTML='<div class="dashboard-empty-state">No completed tests yet. Your result history will appear here after you submit a test.</div>';
+    return;
+  }
+  list.innerHTML=rows.map(r=>{
+    const pct=Number(r.percentage||0);
+    const pass=!!r.pass;
+    const date=r.completedAt?new Date(r.completedAt).toLocaleString([], {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    return `<article class="performance-history-row"><div class="performance-history-main"><strong>${escapeHtml(r.title||'Test')}</strong><span>${date}</span></div><div class="performance-history-score"><strong>${pct.toFixed(1)}%</strong><span>${Number(r.marks||0).toFixed(2)} / ${Number(r.maxMarks||0).toFixed(2)}</span></div><span class="performance-badge ${pass?'pass':'fail'}">${pass?'PASS':'FAIL'}</span></article>`;
+  }).join('');
+}
+
 let restoringSession = false;
 let restoredAnswers = {};
 let paletteCurrentIndex = 0;
@@ -198,6 +242,7 @@ function saveTestSession(){
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({
       active: true,
       currentData,
+      title: dashboardTestTitle(),
       markCorrect: MARK_CORRECT,
       markWrong: MARK_WRONG,
       passPercent: 60,
@@ -1193,6 +1238,19 @@ function finalizeResult(forcedNote){
   const passMark = maxMarks * (PASS_PERCENT / 100);
    const pass = marks >= passMark;
 
+  saveTestHistory({
+    title: dashboardTestTitle(),
+    marks,
+    maxMarks,
+    percentage: maxMarks ? (marks / maxMarks) * 100 : 0,
+    pass,
+    correct: correctCount,
+    wrong: wrongCount,
+    unanswered,
+    completedAt: new Date().toISOString()
+  });
+  renderDashboardPerformance();
+
   card.className = 'result-card ' + (pass ? 'pass' : 'fail');
 
   const resultImage = document.getElementById('resultImage');
@@ -1275,12 +1333,8 @@ function handleDashboardNav(key){
     case 'exams':
       dashboardStartTest();
       break;
-    case 'library':
     case 'saved':
-      openDashboardLoader('Your question-set library is ready. Load a saved or new paper below.');
-      break;
-    case 'homework':
-      openDashboardLoader('Homework mode: choose a question set to work on.');
+      openDashboardLoader('Open your saved question sets in the test workspace.');
       break;
     case 'scan':
       openDashboardLoader('Scan / import a question paper using the loader below.');
@@ -1291,14 +1345,16 @@ function handleDashboardNav(key){
       openDashboardLoader('Recommendations are based on the question sets available in your library.');
       break;
     case 'performance':
-      openDashboardLoader('Performance is shown after you complete and submit a test.');
+      setDashboardActive('performance');
+      renderDashboardPerformance();
+      document.getElementById('dashboardPerformancePanel')?.scrollIntoView({behavior:'smooth', block:'start'});
       break;
     case 'search':
       openDashboardLoader('Use the question-set loader to find or load your paper.');
       break;
-    case 'settings':
     case 'more':
-      openDashboardLoader('Settings and additional tools are available in the test workspace.');
+      setDashboardActive('saved');
+      openDashboardLoader('Open your saved question sets in the test workspace.');
       break;
     case 'logout':
       if (supabaseClient) supabaseClient.auth.signOut().catch(e => console.warn(e));
@@ -1309,33 +1365,31 @@ function handleDashboardNav(key){
 
 function renderDashboardProjects(){
   const list = document.getElementById('dashboardPendingList');
-  const template = document.getElementById('dashboardProjectTemplate');
-  if (!list || !template) return;
-  list.querySelectorAll('.dashboard-generated-project').forEach(el => el.remove());
-  const projects = Array.isArray(savedProjects) ? savedProjects.slice(0, 3) : [];
-  projects.forEach(project => {
-    const clone = template.cloneNode(true);
-    clone.hidden = false;
-    clone.removeAttribute('id');
-    clone.classList.add('dashboard-generated-project');
-    const paper = project.paper || {};
-    const questions = Array.isArray(paper.questions) ? paper.questions.filter(q => q && q.q) : [];
-    clone.querySelector('.project-title').textContent = paper.title || `Question Set ${project.project_number || ''}`;
-    clone.querySelector('.project-count').textContent = questions.length;
-    clone.querySelector('.project-time').textContent = `${Number(paper.timeLimitMins || 120)} mins`;
-    clone.addEventListener('click', () => {
-      try{
-        applyProjectPaper(paper);
-        document.getElementById('homeScreen').style.display = 'none';
-        document.getElementById('appShell').classList.add('active');
-        testStarted = true;
-        setTestPaletteVisibility(true);
-        buildQuiz(false);
-        window.scrollTo(0,0);
-      }catch(e){ setLoaderMsg('Could not open this question set: ' + (e.message || e), false); }
-    });
-    list.appendChild(clone);
+  if (!list) return;
+  list.innerHTML = '';
+  let state = null;
+  try { state = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch(e) {}
+  if (!state || !state.active || !Array.isArray(state.currentData) || !state.currentData.some(item => item && item.q)) {
+    list.innerHTML = '<div class="dashboard-empty-state">No unfinished tests. Start a test and it will appear here until submitted.</div>';
+    return;
+  }
+  const questions = state.currentData.filter(item => item && item.q);
+  const answeredCount = Object.keys(state.answers || {}).length;
+  const title = state.title || 'Unfinished Test';
+  const total = questions.length;
+  const remainingMins = Math.max(0, Math.ceil(Number(state.remaining || 0) / 60));
+  const article = document.createElement('article');
+  article.className = 'pending-item dashboard-generated-project';
+  article.innerHTML = `<div class="pending-icon project-icon">▶</div><div class="pending-details"><div class="pending-title-row"><strong>${escapeHtml(title)}</strong><span>In progress</span></div><div class="pending-meta"><span><small>Progress</small>${answeredCount}/${total} answered</span><span><small>Remaining</small>${remainingMins} mins</span><span><small>Pass Mark</small>60%</span></div></div>`;
+  article.addEventListener('click', () => {
+    try {
+      restoreTestSession();
+      document.getElementById('homeScreen').style.display='none';
+      document.getElementById('appShell').classList.add('active');
+      window.scrollTo(0,0);
+    } catch(e) { console.warn(e); }
   });
+  list.appendChild(article);
 }
 
 function bindDashboard(){
@@ -1351,6 +1405,7 @@ function bindDashboard(){
   }
   updateDashboardIdentity();
   renderDashboardProjects();
+  renderDashboardPerformance();
 }
 
 // UI controls
