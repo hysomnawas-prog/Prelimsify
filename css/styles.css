@@ -819,3 +819,108 @@
 .loader-msg.err,.loader-msg.ok{color:#000}
 .saved-delete{color:#000}
 .saved-delete:hover{background:#eee}
+
+/* Camera scanner */
+.scan-button{display:grid;place-items:center;padding:0}
+.scan-button svg{width:31px;height:31px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.camera-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px}
+.camera-modal[hidden]{display:none}
+.camera-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}
+.camera-dialog{position:relative;width:min(760px,100%);background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 28px 90px rgba(0,0,0,.35);z-index:1}
+.camera-dialog-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e5e5e5}
+.camera-dialog-head>div{display:flex;flex-direction:column;gap:3px}.camera-dialog-head strong{font-size:18px;color:#000}.camera-dialog-head span{font-size:12px;color:#666}
+.camera-close{border:0;background:#f1f1f1;color:#000;width:36px;height:36px;border-radius:50%;font-size:24px;line-height:1;cursor:pointer}
+.camera-stage{position:relative;background:#111;min-height:360px;display:grid;place-items:center;overflow:hidden}
+.camera-stage video,.camera-stage img{width:100%;height:min(65vh,560px);object-fit:contain;background:#111}
+.camera-guide{position:absolute;inset:10% 8%;border:2px solid rgba(255,255,255,.75);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.12);pointer-events:none}
+.camera-status{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);max-width:90%;padding:8px 12px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.camera-status.error{background:#fff;color:#000;border:1px solid #000}
+.camera-actions{display:flex;justify-content:center;gap:10px;padding:16px;background:#fff}.camera-actions .btn{min-width:120px}.camera-actions .btn[hidden]{display:none}
+@media(max-width:560px){.camera-modal{padding:0}.camera-dialog{width:100%;height:100%;border-radius:0;display:flex;flex-direction:column}.camera-stage{flex:1;min-height:0}.camera-stage video,.camera-stage img{height:100%;max-height:none}.camera-dialog-head{padding:14px 16px}.camera-actions{padding:12px;position:relative}.camera-actions .btn{min-width:100px}.camera-guide{inset:9% 5%}.camera-status{bottom:12px;font-size:11px}}
+
+/* Functional monochrome camera scanner */
+.scan-button{display:grid;place-items:center;padding:0}
+.scan-button svg{width:31px;height:31px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.camera-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px}.camera-modal[hidden]{display:none}.camera-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(3px)}
+.camera-dialog{position:relative;width:min(760px,100%);background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 28px 90px rgba(0,0,0,.35);z-index:1}.camera-dialog-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #e5e5e5}.camera-dialog-head>div{display:flex;flex-direction:column;gap:3px}.camera-dialog-head strong{font-size:18px;color:#000}.camera-dialog-head span{font-size:12px;color:#666}.camera-close{border:0;background:#f1f1f1;color:#000;width:36px;height:36px;border-radius:50%;font-size:24px;line-height:1;cursor:pointer}
+.camera-stage{position:relative;background:#111;min-height:360px;display:grid;place-items:center;overflow:hidden}.camera-stage video,.camera-stage img{width:100%;height:min(65vh,560px);object-fit:contain;background:#111}.camera-guide{position:absolute;inset:10% 8%;border:2px solid rgba(255,255,255,.75);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.12);pointer-events:none}.camera-status{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);max-width:90%;padding:8px 12px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.camera-status.error{background:#fff;color:#000;border:1px solid #000}.camera-actions{display:flex;justify-content:center;gap:10px;padding:16px;background:#fff}.camera-actions .btn{min-width:120px}.camera-actions .btn[hidden]{display:none}
+@media(max-width:560px){.camera-modal{padding:0}.camera-dialog{width:100%;height:100%;border-radius:0;display:flex;flex-direction:column}.camera-stage{flex:1;min-height:0}.camera-stage video,.camera-stage img{height:100%;max-height:none}.camera-dialog-head{padding:14px 16px}.camera-actions{padding:12px}.camera-actions .btn{min-width:100px}.camera-guide{inset:9% 5%}.camera-status{bottom:12px;font-size:11px}}
+
+/* Dashboard saved-paper/search UX */
+.loader-panel.saved-only-mode .loader-body > label,
+.loader-panel.saved-only-mode .loader-body > textarea,
+.loader-panel.saved-only-mode .loader-body > .loader-row,
+.loader-panel.saved-only-mode .loader-body > .hysom-divider,
+.loader-panel.saved-only-mode .loader-body > .loader-msg {
+  display: none !important;
+}
+.loader-panel.saved-only-mode .loader-toggle,
+.loader-panel.saved-only-mode .saved-panel {
+  display: block;
+}
+.loader-panel.saved-only-mode .saved-panel {
+  margin-top: 0;
+}
+.dashboard-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 100px 20px 20px;
+  background: rgba(0,0,0,.28);
+}
+.dashboard-search-overlay[hidden] { display: none; }
+.dashboard-search-card {
+  width: min(560px, 100%);
+  background: #fff;
+  color: #111;
+  border: 1px solid #ddd;
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.18);
+  padding: 18px;
+}
+.dashboard-search-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; font-size:18px; }
+.dashboard-search-close { border:0; background:#111; color:#fff; width:32px; height:32px; border-radius:50%; font-size:22px; cursor:pointer; }
+#dashboardSearchInput { width:100%; box-sizing:border-box; padding:13px 14px; border:1px solid #bbb; border-radius:10px; background:#fafafa; color:#111; outline:none; }
+#dashboardSearchInput:focus { border-color:#111; box-shadow:0 0 0 2px #eee; }
+.dashboard-search-results { margin-top:12px; max-height:55vh; overflow:auto; display:grid; gap:8px; }
+.dashboard-search-result { width:100%; text-align:left; border:1px solid #ddd; background:#fff; color:#111; border-radius:10px; padding:12px 14px; cursor:pointer; display:flex; flex-direction:column; gap:3px; }
+.dashboard-search-result:hover { background:#f2f2f2; }
+.dashboard-search-result span { color:#666; }
+.dashboard-search-empty { padding:20px; text-align:center; color:#666; }
+
+/* Saved Papers is a focused view: show only the saved-project section. */
+.app-shell.saved-view .masthead,
+.app-shell.saved-view .timesup-banner,
+.app-shell.saved-view .scorebar,
+.app-shell.saved-view .progress-track,
+.app-shell.saved-view .pause-overlay,
+.app-shell.saved-view .test-layout,
+.app-shell.saved-view .submit-bar,
+.app-shell.saved-view .result-overlay {
+  display: none !important;
+}
+.app-shell.saved-view .loader-panel.saved-only-mode .loader-toggle {
+  display: none !important;
+}
+.app-shell.saved-view .loader-panel {
+  margin-top: 24px;
+}
+
+
+/* Google login / authentication */
+.login-screen{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#f5f5f5;padding:24px;box-sizing:border-box;}
+.login-screen[hidden]{display:none!important;}
+.login-card{width:min(420px,100%);background:#fff;border:1px solid #ddd;border-radius:24px;padding:40px 34px;box-shadow:0 18px 50px rgba(0,0,0,.12);text-align:center;color:#111;}
+.login-brand{font-size:30px;font-weight:800;letter-spacing:-1.2px;margin-bottom:34px;}
+.login-card h1{margin:0 0 10px;font-size:30px;letter-spacing:-.6px;}
+.login-card p{margin:0 auto 26px;max-width:340px;color:#666;line-height:1.55;font-size:14px;}
+.google-login-btn{width:100%;height:52px;border:1px solid #111;border-radius:12px;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;gap:12px;font:700 15px var(--sans);cursor:pointer;transition:transform .15s,opacity .15s;}
+.google-login-btn:hover{transform:translateY(-1px);}
+.google-login-btn:disabled{opacity:.6;cursor:wait;transform:none;}
+.google-mark{width:26px;height:26px;border-radius:50%;background:#fff;color:#111;display:inline-flex;align-items:center;justify-content:center;font:800 15px Arial,sans-serif;}
+.login-error{min-height:20px;margin-top:14px;color:#111;font-size:12px;line-height:1.4;}
+.login-note{display:block;margin-top:18px;color:#888;font-size:11px;line-height:1.5;}
+@media(max-width:600px){.login-card{padding:32px 24px;border-radius:20px}.login-card h1{font-size:26px;}}

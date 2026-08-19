@@ -7,6 +7,21 @@
 </head>
 <body>
 
+<div class="login-screen" id="loginScreen" hidden>
+  <div class="login-card">
+    <div class="login-brand">prelimsify</div>
+    <h1>Welcome back</h1>
+    <p>Sign in with your Google account to continue to your learning dashboard.</p>
+    <button class="google-login-btn" id="googleLoginBtn" type="button" onclick="loginWithGoogle()">
+      <span class="google-mark" aria-hidden="true">G</span>
+      <span>Continue with Google</span>
+    </button>
+    <div class="login-error" id="loginError" role="alert"></div>
+    <small class="login-note">Your account is used to keep your student session secure.</small>
+  </div>
+</div>
+
+
 <div class="home-screen dashboard-screen" id="homeScreen">
   <div class="dashboard-shell">
     <aside class="dashboard-sidebar" aria-label="Main navigation">
@@ -30,8 +45,8 @@
           <div class="dashboard-school">Prelimsify Learning Platform</div>
         </div>
         <div class="dashboard-header-actions">
-          <button class="header-icon-btn" type="button" title="Notifications" aria-label="Notifications">♧<span class="notification-dot"></span></button>
-          <button class="header-icon-btn" type="button" data-dashboard-nav="search" title="Search" aria-label="Search">⌕</button>
+          <button class="header-icon-btn" type="button" data-dashboard-nav="profile" title="Rename student" aria-label="Rename student">♧</button>
+          <button class="header-icon-btn" type="button" data-dashboard-nav="search" title="Search saved papers" aria-label="Search saved papers">⌕</button>
         </div>
       </header>
 
@@ -57,10 +72,20 @@
     <nav class="dashboard-bottom-nav" aria-label="Mobile navigation">
       <button type="button" class="bottom-nav-item active" data-dashboard-nav="home"><span>⌂</span><small>Home</small></button>
       <button type="button" class="bottom-nav-item" data-dashboard-nav="performance"><span>▥</span><small>Performance</small></button>
-      <button type="button" class="scan-button" data-dashboard-nav="scan" aria-label="Scan or load question paper">⌾</button>
+      <button type="button" class="scan-button" data-dashboard-nav="scan" aria-label="Open camera scanner" title="Scan with camera">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M20 19h7l4-6h8l4 6h1c5 0 9 4 9 9v18c0 5-4 9-9 9H20c-5 0-9-4-9-9V28c0-5 4-9 9-9Z"/><circle cx="32" cy="37" r="10"/><circle cx="32" cy="37" r="5"/></svg>
+      </button>
       <button type="button" class="bottom-nav-item" data-dashboard-nav="exams"><span>◇</span><small>Exams</small></button>
       <button type="button" class="bottom-nav-item" data-dashboard-nav="more"><span>□</span><small>Saved</small></button>
     </nav>
+  </div>
+</div>
+
+<div class="dashboard-search-overlay" id="dashboardSearchOverlay" hidden aria-hidden="true">
+  <div class="dashboard-search-card" role="dialog" aria-modal="true" aria-labelledby="dashboardSearchTitle">
+    <div class="dashboard-search-head"><strong id="dashboardSearchTitle">Search Saved Papers</strong><button type="button" class="dashboard-search-close" id="dashboardSearchClose" aria-label="Close search">×</button></div>
+    <input id="dashboardSearchInput" type="search" placeholder="Search saved paper name…" autocomplete="off">
+    <div id="dashboardSearchResults" class="dashboard-search-results"></div>
   </div>
 </div>
 
@@ -197,5 +222,30 @@ D. 1, 2 and 3
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/app.js"></script>
+
+<!-- Camera scanner -->
+<div class="camera-modal" id="cameraModal" hidden aria-hidden="true">
+  <div class="camera-backdrop" data-camera-close></div>
+  <section class="camera-dialog" role="dialog" aria-modal="true" aria-labelledby="cameraTitle">
+    <div class="camera-dialog-head">
+      <div><strong id="cameraTitle">Scan with Camera</strong><span>Capture a question paper or page</span></div>
+      <button class="camera-close" type="button" data-camera-close aria-label="Close camera">×</button>
+    </div>
+    <div class="camera-stage">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <canvas id="cameraCanvas" hidden></canvas>
+      <img id="cameraPreview" alt="Captured page preview" hidden>
+      <div class="camera-guide" aria-hidden="true"></div>
+      <div class="camera-status" id="cameraStatus">Allow camera access to begin scanning.</div>
+    </div>
+    <div class="camera-actions">
+      <button class="btn secondary" type="button" id="cameraRetakeBtn" hidden>Retake</button>
+      <button class="btn" type="button" id="cameraCaptureBtn">Capture</button>
+      <button class="btn" type="button" id="cameraUseBtn" hidden>Use Photo / OCR</button>
+    </div>
+    <input type="file" id="cameraFileFallback" accept="image/*" capture="environment" hidden>
+  </section>
+</div>
+
 </body>
 </html>
