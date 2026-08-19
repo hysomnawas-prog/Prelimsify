@@ -12,89 +12,6 @@ const SAVED_PROJECTS_TABLE = "quiz_projects";
 let supabaseClient = null;
 let supabaseUser = null;
 
-
-// ================= Google authentication =================
-async function initSupabase(){
-  if (!window.supabase || !window.supabase.createClient) {
-    console.error('Supabase client library is unavailable.');
-    showLoginScreen('Authentication service could not be loaded.');
-    return false;
-  }
-  try {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-    const { data, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-    supabaseUser = data?.session?.user || null;
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
-      supabaseUser = session?.user || null;
-      updateDashboardIdentity();
-      if (supabaseUser) {
-        hideLoginScreen();
-        document.getElementById('homeScreen').style.display = 'flex';
-      } else {
-        showLoginScreen();
-      }
-    });
-    if (supabaseUser) hideLoginScreen();
-    else showLoginScreen();
-    return true;
-  } catch (err) {
-    console.error('Supabase initialization failed:', err);
-    showLoginScreen('Could not connect to authentication.');
-    return false;
-  }
-}
-
-async function loginWithGoogle(){
-  if (!supabaseClient) return showLoginScreen('Authentication service is not ready yet.');
-  const button = document.getElementById('googleLoginBtn');
-  const errorEl = document.getElementById('loginError');
-  if (button) { button.disabled = true; button.textContent = 'Connecting…'; }
-  if (errorEl) errorEl.textContent = '';
-  try {
-    const { error } = await supabaseClient.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + window.location.pathname }
-    });
-    if (error) throw error;
-  } catch (err) {
-    console.error('Google login failed:', err);
-    if (errorEl) errorEl.textContent = err?.message || 'Google sign-in failed. Please try again.';
-    if (button) { button.disabled = false; button.textContent = 'Continue with Google'; }
-  }
-}
-
-async function logoutUser(){
-  try {
-    if (supabaseClient) {
-      const { error } = await supabaseClient.auth.signOut();
-      if (error) throw error;
-    }
-  } catch (err) {
-    console.warn('Logout failed:', err);
-  } finally {
-    supabaseUser = null;
-    showHome();
-    showLoginScreen();
-  }
-}
-
-function showLoginScreen(message=''){
-  const login = document.getElementById('loginScreen');
-  const home = document.getElementById('homeScreen');
-  const app = document.getElementById('appShell');
-  if (login) { login.hidden = false; login.classList.add('open'); }
-  if (home) home.style.display = 'none';
-  if (app) app.classList.remove('active');
-  const errorEl = document.getElementById('loginError');
-  if (errorEl) errorEl.textContent = message || '';
-}
-
-function hideLoginScreen(){
-  const login = document.getElementById('loginScreen');
-  if (login) { login.hidden = true; login.classList.remove('open'); }
-}
-
 const DEFAULT_DATA = [
 {s:"SECTION A — ANCIENT HISTORY & ART/CULTURE"},
 {q:"With reference to the Second Urbanisation in the Indian subcontinent, consider the following statements:\n1. The emergence of urban centres was associated with the expansion of craft production.\n2. The use of punch-marked coins is associated with this period.\n3. The emergence of cities was confined exclusively to the Gangetic plains.\nWhich of the statements given above is/are correct?",o:{A:"1 and 2 only",B:"2 only",C:"1 and 3 only",D:"1, 2 and 3"},a:"A"},
@@ -263,50 +180,6 @@ function changeTextZoom(delta){
 }
 
 const SESSION_KEY = 'prelimsify_active_test_v1';
-const HISTORY_KEY = 'prelimsify_test_history_v1';
-
-function getTestHistory(){
-  try{
-    const raw = localStorage.getItem(HISTORY_KEY);
-    const rows = raw ? JSON.parse(raw) : [];
-    return Array.isArray(rows) ? rows : [];
-  }catch(e){ return []; }
-}
-
-function saveTestHistory(entry){
-  try{
-    const rows = getTestHistory();
-    rows.unshift(entry);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(rows.slice(0, 100)));
-  }catch(e){ console.warn('Could not save test history:', e); }
-}
-
-function dashboardTestTitle(){
-  return document.getElementById('titleText')?.textContent?.trim() || 'Question Set';
-}
-
-function escapeHtml(value){
-  return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-
-function renderDashboardPerformance(reveal=true){
-  const list=document.getElementById('dashboardPerformanceList');
-  const panel=document.getElementById('dashboardPerformancePanel');
-  if(!list || !panel) return;
-  if (reveal) panel.hidden=false;
-  const rows=getTestHistory();
-  if(!rows.length){
-    list.innerHTML='<div class="dashboard-empty-state">No completed tests yet. Your result history will appear here after you submit a test.</div>';
-    return;
-  }
-  list.innerHTML=rows.map(r=>{
-    const pct=Number(r.percentage||0);
-    const pass=!!r.pass;
-    const date=r.completedAt?new Date(r.completedAt).toLocaleString([], {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-    return `<article class="performance-history-row"><div class="performance-history-main"><strong>${escapeHtml(r.title||'Test')}</strong><span>${date}</span></div><div class="performance-history-score"><strong>${pct.toFixed(1)}%</strong><span>${Number(r.marks||0).toFixed(2)} / ${Number(r.maxMarks||0).toFixed(2)}</span></div><span class="performance-badge ${pass?'pass':'fail'}">${pass?'PASS':'FAIL'}</span></article>`;
-  }).join('');
-}
-
 let restoringSession = false;
 let restoredAnswers = {};
 let paletteCurrentIndex = 0;
@@ -325,7 +198,6 @@ function saveTestSession(){
     sessionStorage.setItem(SESSION_KEY, JSON.stringify({
       active: true,
       currentData,
-      title: dashboardTestTitle(),
       markCorrect: MARK_CORRECT,
       markWrong: MARK_WRONG,
       passPercent: 60,
@@ -355,6 +227,7 @@ function restoreTestSession(){
     currentData = state.currentData;
     MARK_CORRECT = Number(state.markCorrect ?? 2);
     MARK_WRONG = Number(state.markWrong ?? -0.66);
+    // Ignore legacy session passPercent values; every test passes at 60%.
     PASS_PERCENT = 60;
     remaining = Math.max(0, Number(state.remaining) || 0);
     testPaused = !!state.paused;
@@ -432,7 +305,6 @@ function showHome(){
 }
 
 function exitTestToUploadPage(){
-  // Exiting a test always returns to the dashboard home page.
   setTestPaletteVisibility(false);
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
@@ -441,24 +313,831 @@ function exitTestToUploadPage(){
   submitted = false;
   timeUp = false;
   clearTestSession();
+
   currentData = [];
   paletteCurrentIndex = 0;
   visitedQuestions = new Set();
   markedQuestions = new Set();
   selectedAnswers = {};
-  document.getElementById('appShell').classList.remove('active');
-  document.getElementById('homeScreen').style.display = 'flex';
+  document.getElementById('homeScreen').style.display = 'none';
+  document.getElementById('appShell').classList.add('active');
   document.getElementById('resultOverlay').classList.remove('open');
-  const searchInput=document.getElementById('dashboardSearchInput');
-  if(searchInput&&!searchInput.dataset.searchBound){ searchInput.addEventListener('input',()=>renderDashboardSearchResults(searchInput.value)); searchInput.dataset.searchBound='1'; }
-  const searchClose=document.getElementById('dashboardSearchClose');
-  if(searchClose&&!searchClose.dataset.searchBound){ searchClose.addEventListener('click',closeDashboardSearch); searchClose.dataset.searchBound='1'; }
-  const searchOverlay=document.getElementById('dashboardSearchOverlay');
-  if(searchOverlay&&!searchOverlay.dataset.searchBound){ searchOverlay.addEventListener('click',e=>{if(e.target===searchOverlay)closeDashboardSearch();}); searchOverlay.dataset.searchBound='1'; }
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDashboardSearch();},{once:false});
-  updateDashboardIdentity();
-  renderDashboardProjects();
+  buildQuiz(false);
+
+  // Open the question-paper upload/selection panel immediately.
+  const loaderBody = document.getElementById('loaderBody');
+  if (loaderBody) loaderBody.classList.add('open');
+  window.scrollTo({top:0, behavior:'smooth'});
+  setLoaderMsg('Test exited. Choose or upload a question set to start a new test.', true);
+}
+
+
+function updatePauseUI(){
+  const overlay = document.getElementById('pauseOverlay');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const scorebar = document.querySelector('.scorebar');
+  if (overlay){
+    overlay.classList.toggle('open', testPaused);
+    overlay.setAttribute('aria-hidden', testPaused ? 'false' : 'true');
+  }
+  if (pauseBtn){
+    pauseBtn.textContent = testPaused ? 'Resume' : 'Pause';
+    pauseBtn.setAttribute('aria-pressed', testPaused ? 'true' : 'false');
+  }
+  if (scorebar) scorebar.classList.toggle('test-paused', testPaused);
+}
+
+function pauseTest(){
+  if (!testStarted || submitted || timeUp || testPaused) return;
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  testPaused = true;
+  saveTestSession();
+  updatePauseUI();
+}
+
+function resumeTest(){
+  if (!testStarted || submitted || timeUp || !testPaused) return;
+  testPaused = false;
+  updatePauseUI();
+  startTimer();
+}
+
+function togglePauseTest(){
+  if (testPaused) resumeTest();
+  else pauseTest();
+}
+
+function resetTest(){
+  if (!testStarted) return;
+  if (!confirm('Reset this test? All answers and your current score will be cleared.')) return;
+
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+
+  const mins = Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120);
+  remaining = Math.round(mins * 60);
+  timeUp = false;
+  testPaused = false;
+  submitted = false;
+  clearTestSession();
+  paletteCurrentIndex = 0;
+  visitedQuestions = new Set([0]);
+  markedQuestions = new Set();
+  selectedAnswers = {};
+  buildQuiz(false);
   window.scrollTo(0, 0);
+}
+
+
+const root = document.getElementById('quizRoot');
+const savePaperBtn = document.getElementById('savePaperBtn');
+if (savePaperBtn) savePaperBtn.addEventListener('click', saveCurrentQuestionSet);
+
+
+
+function projectPreview(paper){
+  const first = paper && paper.questions && paper.questions[0];
+  return first ? String(first.q || '').replace(/\s+/g, ' ').trim() : 'Question set';
+}
+
+async function loadSavedProjects(){
+  if (!supabaseClient || !supabaseUser) return;
+
+  try{
+    const { data, error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .select('id,user_id,project_number,paper,saved_at')
+      .eq('user_id', supabaseUser.id)
+      .order('project_number', { ascending:true });
+
+    if (error) throw error;
+    savedProjects = data || [];
+    renderSavedProjects();
+  }catch(e){
+    console.error('Could not load saved projects:', e);
+    setLoaderMsg('Could not load saved projects: ' + (e.message || e), false);
+  }
+}
+
+function makeProjectPaper(){
+  return {
+    source: 'prelimsify-default-v1',
+    title: document.getElementById('titleText')?.textContent || 'Question Set',
+    questions: currentData,
+    markCorrect: MARK_CORRECT,
+    markWrong: MARK_WRONG,
+    passPercent: 60,
+    timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120)
+  };
+}
+
+function applyProjectPaper(projectPaper){
+  const payload = Array.isArray(projectPaper)
+    ? { questions: projectPaper }
+    : (projectPaper || {});
+
+  const questions = payload.questions || payload.data;
+  if (!Array.isArray(questions)) throw new Error('Saved project has no valid question set.');
+  validateData(questions);
+
+  currentData = questions;
+  MARK_CORRECT = Number(payload.markCorrect ?? 2);
+  MARK_WRONG = Number(payload.markWrong ?? -0.66);
+  // Ignore legacy per-project passPercent values so every test uses 60%.
+  PASS_PERCENT = 60;
+
+  const mins = Number(payload.timeLimitMins ?? 120);
+  remaining = Math.round(Math.max(1, mins) * 60);
+  document.getElementById('timeLimitInput').value = Math.max(1, mins);
+  document.getElementById('markCorrectInput').value = MARK_CORRECT;
+  document.getElementById('markWrongInput').value = MARK_WRONG;
+  document.getElementById('passMarkInput').value = PASS_PERCENT;
+}
+
+async function saveCurrentQuestionSet(){
+  if (!supabaseClient || !supabaseUser){
+    setLoaderMsg('Supabase is not connected. Try again after the connection is restored.', false);
+    return;
+  }
+  if (!Array.isArray(currentData) || !currentData.some(item => item.q)){
+    setLoaderMsg('There is no question set loaded to save.', false);
+    return;
+  }
+
+  const defaultName = document.getElementById('titleText')?.textContent?.trim() || 'Question Set';
+  const projectName = window.prompt('Name this project:', defaultName);
+  if (projectName === null) return;
+  const cleanName = projectName.trim();
+  if (!cleanName){
+    setLoaderMsg('Project name cannot be empty.', false);
+    return;
+  }
+
+  try{
+    const { data: latest, error: latestError } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .select('project_number')
+      .eq('user_id', supabaseUser.id)
+      .order('project_number', { ascending:false })
+      .limit(1);
+
+    if (latestError) throw latestError;
+
+    const nextProject = latest && latest.length ? Number(latest[0].project_number) + 1 : 1;
+    const projectPaper = makeProjectPaper();
+    projectPaper.title = cleanName;
+
+    const { data, error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .insert({
+        user_id: supabaseUser.id,
+        project_number: nextProject,
+        paper: projectPaper,
+        saved_at: new Date().toISOString()
+      })
+      .select('id,user_id,project_number,paper,saved_at')
+      .single();
+
+    if (error) throw error;
+
+    savedProjects.push(data);
+    savedProjects.sort((a,b) => a.project_number - b.project_number);
+    renderSavedProjects();
+    setLoaderMsg(`Project "${cleanName}" saved.`, true);
+  }catch(e){
+    console.error('Could not save project:', e);
+    setLoaderMsg('Could not save project: ' + (e.message || e), false);
+  }
+}
+
+async function deleteSavedProject(id){
+  if (!supabaseClient || !supabaseUser) return;
+
+  try{
+    const { error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .delete()
+      .eq('user_id', supabaseUser.id)
+      .eq('id', id);
+
+    if (error) throw error;
+
+    savedProjects = savedProjects.filter(p => p.id !== id);
+    renderSavedProjects();
+    setLoaderMsg('Project deleted.', true);
+  }catch(e){
+    setLoaderMsg('Could not delete project: ' + (e.message || e), false);
+  }
+}
+
+async function renameSavedProject(id){
+  if (!supabaseClient || !supabaseUser) return;
+
+  const row = savedProjects.find(p => p.id === id);
+  if (!row) return;
+
+  const currentName = row.paper?.title || `Project ${row.project_number}`;
+  const newName = window.prompt('Rename this project:', currentName);
+  if (newName === null) return;
+  const cleanName = newName.trim();
+  if (!cleanName){
+    setLoaderMsg('Project name cannot be empty.', false);
+    return;
+  }
+  if (cleanName === currentName) return;
+
+  try{
+    const updatedPaper = { ...(row.paper || {}), title: cleanName };
+    const { data, error } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .update({ paper: updatedPaper })
+      .eq('user_id', supabaseUser.id)
+      .eq('id', id)
+      .select('id,user_id,project_number,paper,saved_at')
+      .single();
+
+    if (error) throw error;
+
+    const index = savedProjects.findIndex(p => p.id === id);
+    if (index !== -1) savedProjects[index] = data;
+    renderSavedProjects();
+    setLoaderMsg(`Project renamed to "${cleanName}".`, true);
+  }catch(e){
+    console.error('Could not rename project:', e);
+    setLoaderMsg('Could not rename project: ' + (e.message || e), false);
+  }
+}
+
+function renderSavedProjects(){
+  const list = document.getElementById('savedList');
+  const count = document.getElementById('savedCount');
+  if (!list || !count) return;
+
+  const rows = [...savedProjects].sort((a,b) => a.project_number - b.project_number);
+  count.textContent = rows.length + (rows.length === 1 ? ' saved' : ' saved');
+
+  if (!rows.length){
+    list.innerHTML = '<div class="saved-empty">No saved question sets yet.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  rows.forEach(row => {
+    const wrap = document.createElement('div');
+    wrap.className = 'saved-item';
+
+    const name = document.createElement('div');
+    name.className = 'saved-question';
+    const title = row.paper?.title || `Project ${row.project_number}`;
+    name.textContent = `Project ${row.project_number} — ${title}`;
+    name.title = 'Load this question set';
+    name.onclick = () => {
+      try{
+        applyProjectPaper(row.paper);
+        testStarted = true;
+        testPaused = false;
+        submitted = false;
+        timeUp = false;
+        paletteCurrentIndex = 0;
+        visitedQuestions = new Set([0]);
+        markedQuestions = new Set();
+        selectedAnswers = {};
+        clearTestSession();
+        setTestPaletteVisibility(true);
+        document.getElementById('homeScreen').style.display = 'none';
+        document.getElementById('appShell').classList.add('active');
+        buildQuiz(false);
+        closeLoaderIfOpen();
+        window.scrollTo({top:0, behavior:'smooth'});
+        setLoaderMsg(`Loaded Project ${row.project_number}.`, true);
+      }catch(e){
+        setLoaderMsg(`Could not load Project ${row.project_number}: ${e.message || e}`, false);
+      }
+    };
+
+    const actions = document.createElement('div');
+    actions.className = 'saved-actions';
+
+    const rename = document.createElement('button');
+    rename.className = 'saved-rename';
+    rename.type = 'button';
+    rename.textContent = 'Rename';
+    rename.onclick = () => renameSavedProject(row.id);
+
+    const del = document.createElement('button');
+    del.className = 'saved-delete';
+    del.type = 'button';
+    del.textContent = 'Delete';
+    del.onclick = () => deleteSavedProject(row.id);
+
+    actions.appendChild(rename);
+    actions.appendChild(del);
+    wrap.appendChild(name);
+    wrap.appendChild(actions);
+    list.appendChild(wrap);
+  });
+}
+
+function closeLoaderIfOpen(){
+  const body = document.getElementById('loaderBody');
+  if (body) body.classList.remove('open');
+}
+
+function toggleLoader(){
+  document.getElementById('loaderBody').classList.toggle('open');
+}
+
+function setLoaderMsg(text, ok){
+  const el = document.getElementById('loaderMsg');
+  el.textContent = text;
+  el.className = 'loader-msg ' + (ok ? 'ok' : 'err');
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const text = String(ev.target.result || '');
+    if (file.name.toLowerCase().endsWith('.hysom')){
+      document.getElementById('hysomInput').value = text;
+      setLoaderMsg('.hysom file loaded — click "Load .hysom Format" to apply.', true);
+    } else {
+      document.getElementById('jsonInput').value = text;
+      setLoaderMsg('JSON file loaded — click "Load JSON" to apply.', true);
+    }
+  };
+  reader.readAsText(file);
+});
+
+function cleanHysomLine(line){
+  return String(line || '').replace(/\*\*/g, '').replace(/^[ \t]+|[ \t]+$/g, '');
+}
+
+function parseHysom(text){
+  const normalized = String(text || '').replace(/\r\n?/g, '\n').trim();
+  if (!normalized) throw new Error('Paste a .hysom question set first.');
+
+  // Supported headings: Q1., Q2., ... and numeric headings such as 100., 101., ...
+  const starts = [...normalized.matchAll(/(?:^|\n)[ \t]*(?:Q\s*\d+|\d{2,})\.\s*/gi)];
+  if (!starts.length) throw new Error('No question headings found. Start questions with Q1. or 1., 100., etc.');
+
+  const questions = [];
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i].index + (starts[i][0].startsWith('\n') ? 1 : 0);
+    const end = i + 1 < starts.length ? starts[i + 1].index : normalized.length;
+    const heading = starts[i][0].trim();
+    const block = normalized.slice(start, end).replace(/^(?:Q\s*\d+|\d{2,})\.\s*/i, '').trim();
+
+    // Accept both "Correct Answer: A. ..." and "Answer: (d) ...".
+    const answerMatch = block.match(/(?:^|\n)[ \t]*\*{0,2}(?:Correct Answer|Answer)\s*:\s*(?:\(?([A-Da-d])\)?)(?:\.\s*)?(.*?)\*{0,2}[ \t]*(?=\n|$)/i);
+    if (!answerMatch) throw new Error(`Question ${i + 1} (${heading}): missing an Answer/Correct Answer line.`);
+    const answer = answerMatch[1].toUpperCase();
+
+    const beforeAnswer = block.slice(0, answerMatch.index).trim();
+    // Accept A. / B. / C. / D. and (a) / (b) / (c) / (d).
+    const optionMatches = [...beforeAnswer.matchAll(/(?:^|\n)[ \t]*\*{0,2}(?:\(([A-Da-d])\)|([A-Da-d])\.)[ \t]*(.*?)\*{0,2}[ \t]*$/gim)];
+    if (optionMatches.length < 2) throw new Error(`Question ${i + 1} (${heading}): could not find answer options A-D.`);
+
+    const firstOptionPos = optionMatches[0].index + (optionMatches[0][0].startsWith('\n') ? 1 : 0);
+    let questionText = beforeAnswer.slice(0, firstOptionPos).trim();
+    questionText = questionText.replace(/^\*+|\*+$/g, '').trim();
+
+    const opts = {};
+    optionMatches.forEach(m => {
+      const letter = (m[1] || m[2]).toUpperCase();
+      opts[letter] = cleanHysomLine(m[3]);
+    });
+
+    if (!opts[answer]) throw new Error(`Question ${i + 1} (${heading}): correct answer ${answer} is not one of the options.`);
+    questions.push({ q: questionText, o: opts, a: answer });
+  }
+
+  validateData(questions);
+  return questions;
+}
+
+function loadHysomFromTextarea(){
+  const raw = document.getElementById('hysomInput').value.trim();
+  try{
+    const parsed = parseHysom(raw);
+    loadQuestionSet(parsed, '.hysom question set loaded');
+  }catch(err){
+    setLoaderMsg('Could not load .hysom: ' + err.message, false);
+  }
+}
+
+function loadQuestionSet(parsed, successMessage){
+  const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
+  const mc = parseFloat(document.getElementById('markCorrectInput').value);
+  const mw = parseFloat(document.getElementById('markWrongInput').value);
+  MARK_CORRECT = isNaN(mc) ? 2 : mc;
+  MARK_WRONG = isNaN(mw) ? -0.66 : mw;
+  // All question sets use the same 60% passing threshold.
+  // The actual pass mark is calculated from this paper's own maximum marks.
+  PASS_PERCENT = 60;
+  remaining = Math.round(mins * 60);
+  currentData = parsed;
+  buildQuiz();
+  setLoaderMsg(successMessage + '. Click "Save Current Question Set" if you want to keep it in Saved Projects.', true);
+}
+
+function validateData(arr){
+  if (!Array.isArray(arr)) throw new Error('Top level must be an array.');
+  let qCount = 0;
+  arr.forEach((item, i) => {
+    if (item.s !== undefined) return;
+    if (typeof item.q !== 'string' || !item.o || typeof item.a !== 'string'){
+      throw new Error('Item ' + i + ' is missing q, o, or a.');
+    }
+    if (!item.o[item.a]){
+      throw new Error('Item ' + i + ': answer letter "' + item.a + '" not found among its own options.');
+    }
+    qCount++;
+  });
+  if (qCount === 0) throw new Error('No valid questions found.');
+  return qCount;
+}
+
+function loadFromTextarea(){
+  const raw = document.getElementById('jsonInput').value.trim();
+  if (!raw){ setLoaderMsg('Paste or upload a question set first.', false); return; }
+
+  let parsed;
+  try{
+    parsed = JSON.parse(raw);
+    validateData(parsed);
+  }catch(err){
+    setLoaderMsg('Could not load: ' + err.message, false);
+    return;
+  }
+
+  loadQuestionSet(parsed, 'Paper loaded');
+}
+
+async function initSupabase(){
+  if (!SUPABASE_URL || SUPABASE_URL.includes("YOUR_SUPABASE") ||
+      !SUPABASE_PUBLISHABLE_KEY || SUPABASE_PUBLISHABLE_KEY.includes("YOUR_SUPABASE")){
+    setLoaderMsg('Supabase is not configured yet. Put your Project URL and Publishable key near the top of this file.', false);
+    return false;
+  }
+
+  try{
+    supabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      }
+    );
+
+    const { data: sessionData, error: sessionError } =
+      await supabaseClient.auth.getSession();
+
+    if (sessionError) throw sessionError;
+
+    if (sessionData && sessionData.session){
+      supabaseUser = sessionData.session.user;
+      return true;
+    }
+
+    const { data, error } = await supabaseClient.auth.signInAnonymously();
+    if (error) throw error;
+
+    supabaseUser = data.user;
+    return !!supabaseUser;
+  }catch(e){
+    console.error('Supabase initialization failed:', e);
+    setLoaderMsg('Supabase connection failed: ' + (e.message || e), false);
+    return false;
+  }
+}
+
+async function moveBuiltInPaperToSavedProjects(){
+  if (!supabaseClient || !supabaseUser) return;
+
+  try{
+    const defaultQuestions = DEFAULT_DATA;
+    const defaultSource = 'prelimsify-default-v1';
+
+    // If the built-in paper is already present, do not create a duplicate.
+    const { data: projects, error: projectError } = await supabaseClient
+      .from(SAVED_PROJECTS_TABLE)
+      .select('id,project_number,paper')
+      .eq('user_id', supabaseUser.id)
+      .order('project_number', { ascending:true });
+
+    if (projectError) throw projectError;
+
+    const alreadySaved = (projects || []).some(row => row.paper?.source === defaultSource);
+
+    if (!alreadySaved){
+      const rows = projects || [];
+      const nextProject = rows.length
+        ? Math.max(...rows.map(row => Number(row.project_number) || 0)) + 1
+        : 1;
+
+      const { error } = await supabaseClient
+        .from(SAVED_PROJECTS_TABLE)
+        .insert({
+          user_id: supabaseUser.id,
+          project_number: nextProject,
+          paper: {
+            source: defaultSource,
+            title: 'UPSC CSE Prelims 2027 — Default Paper',
+            questions: defaultQuestions,
+            markCorrect: 2,
+            markWrong: -0.66,
+            passPercent: 60,
+            timeLimitMins: 120
+          },
+          saved_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+    }
+
+    // Stop treating quiz_papers as the active/default paper. If it contains
+    // the same built-in data, remove only that built-in copy. Custom data is left untouched.
+    const { data: activePaper, error: activeError } = await supabaseClient
+      .from('quiz_papers')
+      .select('paper')
+      .eq('user_id', supabaseUser.id)
+      .maybeSingle();
+
+    if (activeError) throw activeError;
+
+    if (activePaper?.paper?.data && JSON.stringify(activePaper.paper.data) === JSON.stringify(defaultQuestions)){
+      await supabaseClient
+        .from('quiz_papers')
+        .delete()
+        .eq('user_id', supabaseUser.id);
+    }
+
+    await loadSavedProjects();
+    setLoaderMsg('Default question set moved to Saved Projects. Select it there to start.', true);
+  }catch(e){
+    console.error('Could not move default paper to Saved Projects:', e);
+    setLoaderMsg('Could not move the default paper to Saved Projects: ' + (e.message || e), false);
+  }
+}
+
+function buildQuiz(restoreState = false){
+  if (timerInterval) clearInterval(timerInterval);
+  timeUp = false;
+  submitted = false;
+  answered = 0;
+  correctCount = 0;
+  wrongCount = 0;
+  marks = 0;
+  root.innerHTML = '';
+  document.getElementById('timesUpBanner').style.display = 'none';
+  document.getElementById('resultOverlay').classList.remove('open');
+  document.getElementById('submitBar').style.display = 'none';
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = 'Submit Paper';
+  updatePauseUI();
+
+  if (!Array.isArray(currentData) || !currentData.some(item => item.q) || !testStarted){
+    // No active test: hide all test-only UI and leave only the question-set loader.
+    setTestPaletteVisibility(false);
+    const scorebar = document.querySelector('.scorebar');
+    if (scorebar) scorebar.style.display = 'none';
+    document.getElementById('totalCount').textContent = '0';
+    document.getElementById('maxMarksDisplay').textContent = '0';
+    document.getElementById('scoreCount').textContent = '0.00';
+    document.getElementById('answeredCount').textContent = '0';
+    document.getElementById('progressFill').style.width = '0%';
+    // Keep the question area empty on the Load a question paper page.
+    root.innerHTML = '';
+    return;
+  }
+
+
+  setTestPaletteVisibility(true);
+  const scorebar = document.querySelector('.scorebar');
+  if (scorebar) scorebar.style.display = 'flex';
+  document.getElementById('submitBar').style.display = 'flex';
+  // A real question paper is loaded, so Submit Paper must be active.
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('resetBtnBottom').disabled = false;
+
+  let qNum = 0;
+  total = currentData.filter(d => d.q).length;
+  if (!restoreState) restoredAnswers = {};
+  const maxMarks = total * MARK_CORRECT;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('maxMarksDisplay').textContent = maxMarks;
+
+  currentData.forEach(item => {
+    if (item.s){
+      const div = document.createElement('div');
+      div.className = 'section-divider';
+      div.innerHTML = `<span class="label">${item.s}</span><span class="line"></span>`;
+      root.appendChild(div);
+      return;
+    }
+    qNum++;
+    const card = document.createElement('div');
+    card.className = 'qcard';
+    const questionIndex = qNum - 1;
+    card.dataset.questionIndex = String(questionIndex);
+    card.addEventListener('click', (ev) => {
+      if (ev.target.closest('button')) return;
+      paletteCurrentIndex = questionIndex;
+      visitedQuestions.add(questionIndex);
+      renderQuestionPalette();
+      saveTestSession();
+    });
+
+    const head = document.createElement('div');
+    head.className = 'qhead';
+    head.innerHTML = `<span class="qnum">Q${qNum}.</span><span class="qtext"></span>`;
+    head.querySelector('.qtext').textContent = item.q;
+    card.appendChild(head);
+
+    const optsWrap = document.createElement('div');
+    optsWrap.className = 'options';
+
+    const fb = document.createElement('div');
+    fb.className = 'feedback';
+
+    Object.keys(item.o).forEach(letter => {
+      const btn = document.createElement('button');
+      btn.className = 'opt';
+      btn.dataset.letter = letter;
+      const letterSpan = document.createElement('span');
+      letterSpan.className = 'letter';
+      letterSpan.textContent = letter + '.';
+      btn.appendChild(letterSpan);
+      btn.appendChild(document.createTextNode(' ' + item.o[letter]));
+
+      btn.onclick = () => {
+        if (btn.classList.contains('locked') || timeUp || submitted) return;
+        const allOpts = optsWrap.querySelectorAll('.opt');
+        allOpts.forEach(o => o.classList.add('locked', 'dim'));
+        btn.classList.remove('dim');
+        btn.dataset.picked = '1';
+        selectedAnswers[questionIndex] = letter;
+        visitedQuestions.add(questionIndex);
+        paletteCurrentIndex = questionIndex;
+
+        answered++;
+        if (letter === item.a){
+          btn.classList.add('correct');
+          correctCount++;
+          marks += MARK_CORRECT;
+          fb.textContent = `Correct. +${MARK_CORRECT.toFixed(2)}`;
+          fb.className = 'feedback right';
+        } else {
+          btn.classList.add('wrong');
+          wrongCount++;
+          marks += MARK_WRONG;
+          allOpts.forEach(o => {
+            if (o.dataset.letter === item.a){
+              o.classList.remove('dim');
+              o.classList.add('correct');
+            }
+          });
+          fb.textContent = `Incorrect — correct answer is ${item.a}. ${MARK_WRONG.toFixed(2)}`;
+          fb.className = 'feedback wrong';
+        }
+        updateScore();
+        if (!restoringSession) saveTestSession();
+      };
+      optsWrap.appendChild(btn);
+    });
+
+    if (restoreState && restoredAnswers[qNum]) {
+      const letter = restoredAnswers[qNum];
+      const picked = optsWrap.querySelector(`.opt[data-letter=\"${letter}\"]`);
+      if (picked) {
+        picked.dataset.picked = '1';
+        picked.classList.add('selected');
+        optsWrap.querySelectorAll('.opt').forEach(o => { if (o !== picked) o.classList.add('locked','dim'); });
+        selectedAnswers[questionIndex] = letter;
+        visitedQuestions.add(questionIndex);
+        if (letter === item.a) {
+          picked.classList.add('correct');
+          fb.textContent = `Correct. +${MARK_CORRECT.toFixed(2)}`;
+          fb.className = 'feedback right';
+          answered++; correctCount++; marks += MARK_CORRECT;
+        } else {
+          picked.classList.add('wrong');
+          optsWrap.querySelectorAll('.opt').forEach(o => { if (o.dataset.letter === item.a) { o.classList.remove('dim'); o.classList.add('correct'); }});
+          fb.textContent = `Incorrect — correct answer is ${item.a}. ${MARK_WRONG.toFixed(2)}`;
+          fb.className = 'feedback wrong';
+          answered++; wrongCount++; marks += MARK_WRONG;
+        }
+      }
+    }
+
+    const controls = document.createElement('div');
+    controls.className = 'question-controls';
+    const markBtn = document.createElement('button');
+    markBtn.type = 'button';
+    markBtn.className = 'question-control mark-review-btn';
+    markBtn.textContent = markedQuestions.has(questionIndex) ? 'Unmark for Review' : 'Mark for Review';
+    markBtn.addEventListener('click', () => {
+      if (markedQuestions.has(questionIndex)) markedQuestions.delete(questionIndex);
+      else markedQuestions.add(questionIndex);
+      visitedQuestions.add(questionIndex);
+      paletteCurrentIndex = questionIndex;
+      markBtn.textContent = markedQuestions.has(questionIndex) ? 'Unmark for Review' : 'Mark for Review';
+      renderQuestionPalette();
+      saveTestSession();
+    });
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'question-control clear-response-btn';
+    clearBtn.textContent = 'Clear Response';
+    clearBtn.addEventListener('click', () => clearQuestionResponse(questionIndex));
+    controls.appendChild(markBtn);
+    controls.appendChild(clearBtn);
+
+    card.appendChild(optsWrap);
+    card.appendChild(fb);
+    card.appendChild(controls);
+    root.appendChild(card);
+  });
+
+  updateScore();
+  updatePauseUI();
+  if (!testPaused) startTimer();
+}
+
+function renderQuestionPalette(){
+  const palette = document.getElementById('questionPalette');
+  const grid = document.getElementById('questionPaletteGrid');
+  if (!palette || !grid) return;
+  if (!testStarted || !Array.isArray(currentData) || !currentData.some(item => item.q)) {
+    palette.style.display = 'none';
+    return;
+  }
+  palette.style.display = '';
+  const cards = [...document.querySelectorAll('.qcard')];
+  grid.innerHTML = '';
+  cards.forEach((card, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'palette-btn';
+    b.textContent = String(i + 1);
+    const answeredState = !!selectedAnswers[i] || !!card.querySelector('.opt[data-picked="1"]');
+    const markedState = markedQuestions.has(i);
+    const visitedState = visitedQuestions.has(i);
+    if (answeredState && markedState) b.classList.add('answered-marked');
+    else if (answeredState) b.classList.add('answered');
+    else if (markedState) b.classList.add('marked');
+    else if (!visitedState) b.classList.add('not-visited');
+    else b.classList.add('not-answered');
+    if (i === paletteCurrentIndex) b.classList.add('current');
+    b.title = `Question ${i + 1}`;
+    b.addEventListener('click', () => {
+      if (testPaused || submitted || timeUp) return;
+      paletteCurrentIndex = i;
+      visitedQuestions.add(i);
+      const target = cards[i];
+      if (target) target.scrollIntoView({behavior:'smooth', block:'start'});
+      renderQuestionPalette();
+      saveTestSession();
+    });
+    grid.appendChild(b);
+  });
+}
+
+function clearQuestionResponse(index){
+  const cards = [...document.querySelectorAll('.qcard')];
+  const card = cards[index];
+  if (!card || !selectedAnswers[index]) return;
+  const letter = selectedAnswers[index];
+  const item = currentData.filter(d => d.q)[index];
+  if (letter === item.a){ correctCount--; marks -= MARK_CORRECT; }
+  else { wrongCount--; marks -= MARK_WRONG; }
+  answered--;
+  delete selectedAnswers[index];
+  const opts = card.querySelectorAll('.opt');
+  opts.forEach(o => {
+    o.classList.remove('locked','dim','correct','wrong','selected');
+    delete o.dataset.picked;
+  });
+  const fb = card.querySelector('.feedback');
+  if (fb){ fb.textContent = ''; fb.className = 'feedback'; }
+  paletteCurrentIndex = index;
+  visitedQuestions.add(index);
+  updateScore();
+  saveTestSession();
+}
+
+function updateScore(){
+  renderQuestionPalette();
+  document.getElementById('answeredCount').textContent = answered;
+  document.getElementById('scoreCount').textContent = marks.toFixed(2);
+  document.getElementById('progressFill').style.width = (total ? (answered/total*100) : 0) + '%';
 }
 
 function formatTime(s){
@@ -516,19 +1195,6 @@ function finalizeResult(forcedNote){
   const passMark = maxMarks * (PASS_PERCENT / 100);
    const pass = marks >= passMark;
 
-  saveTestHistory({
-    title: dashboardTestTitle(),
-    marks,
-    maxMarks,
-    percentage: maxMarks ? (marks / maxMarks) * 100 : 0,
-    pass,
-    correct: correctCount,
-    wrong: wrongCount,
-    unanswered,
-    completedAt: new Date().toISOString()
-  });
-  renderDashboardPerformance();
-
   card.className = 'result-card ' + (pass ? 'pass' : 'fail');
 
   const resultImage = document.getElementById('resultImage');
@@ -561,291 +1227,6 @@ function finalizeResult(forcedNote){
 
 function closeResult(){
   document.getElementById('resultOverlay').classList.remove('open');
-}
-
-// ================= Dashboard interactions =================
-const STUDENT_NAME_KEY = 'prelimsify_student_name_v1';
-
-function getStudentName(){
-  try {
-    const saved = localStorage.getItem(STUDENT_NAME_KEY);
-    if (saved && saved.trim()) return saved.trim();
-  } catch(e) {}
-  return '';
-}
-
-function renameStudent(){
-  const current = getStudentName() || dashboardDisplayName();
-  const value = window.prompt('Enter student name:', current);
-  if (value === null) return;
-  const clean = value.trim();
-  if (!clean){
-    window.alert('Student name cannot be empty.');
-    return;
-  }
-  try { localStorage.setItem(STUDENT_NAME_KEY, clean); } catch(e) {}
-  updateDashboardIdentity();
-}
-
-function dashboardDisplayName(){
-  const saved = getStudentName();
-  if (saved) return saved;
-  const metadataName = supabaseUser?.user_metadata?.full_name || supabaseUser?.user_metadata?.name || '';
-  if (metadataName) return metadataName.trim();
-  const email = supabaseUser?.email || '';
-  if (email){
-    const local = email.split('@')[0].replace(/[._-]+/g,' ').trim();
-    if (local) return local.replace(/\b\w/g, ch => ch.toUpperCase());
-  }
-  return 'Student';
-}
-
-function updateDashboardIdentity(){
-  const el = document.getElementById('dashboardUserName');
-  if (el) el.textContent = dashboardDisplayName();
-}
-
-function setDashboardActive(key){
-  document.querySelectorAll('[data-dashboard-nav]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.dashboardNav === key);
-  });
-}
-
-function openDashboardLoader(message){
-  const app = document.getElementById('appShell');
-  const home = document.getElementById('homeScreen');
-  home.style.display = 'none';
-  app.classList.add('active');
-  setTestPaletteVisibility(false);
-  const loaderBody = document.getElementById('loaderBody');
-  if (loaderBody) loaderBody.classList.add('open');
-  if (message) setLoaderMsg(message, true);
-  window.scrollTo({top:0, behavior:'smooth'});
-}
-
-function openSavedProjectsOnly(){
-  const app = document.getElementById('appShell');
-  const home = document.getElementById('homeScreen');
-  home.style.display = 'none';
-  app.classList.add('active');
-  app.classList.add('saved-view');
-  setTestPaletteVisibility(false);
-  const loader = document.querySelector('.loader-panel');
-  const body = document.getElementById('loaderBody');
-  if (body) body.classList.add('open');
-  if (loader) loader.classList.add('saved-only-mode');
-  window.scrollTo({top:0, behavior:'smooth'});
-}
-
-function closeSavedProjectsOnly(){
-  document.querySelector('.loader-panel')?.classList.remove('saved-only-mode');
-  document.getElementById('appShell')?.classList.remove('saved-view');
-}
-
-
-function dashboardStartTest(){
-  setDashboardActive('exams');
-  closeSavedProjectsOnly();
-  showTest();
-}
-
-let cameraStream = null;
-let capturedCameraBlob = null;
-
-function setCameraStatus(message, isError=false){
-  const el = document.getElementById('cameraStatus');
-  if (el) { el.textContent = message; el.classList.toggle('error', !!isError); }
-}
-function stopCameraStream(){
-  if (cameraStream) { cameraStream.getTracks().forEach(track => track.stop()); cameraStream = null; }
-}
-function closeCameraScanner(){
-  stopCameraStream();
-  const modal=document.getElementById('cameraModal'), video=document.getElementById('cameraVideo'), preview=document.getElementById('cameraPreview');
-  const capture=document.getElementById('cameraCaptureBtn'), use=document.getElementById('cameraUseBtn'), retake=document.getElementById('cameraRetakeBtn');
-  if (video) { video.pause(); video.srcObject=null; video.hidden=false; }
-  if (preview) { if(preview.src) URL.revokeObjectURL(preview.src); preview.hidden=true; preview.removeAttribute('src'); }
-  if (capture) capture.hidden=false; if(use) use.hidden=true; if(retake) retake.hidden=true;
-  capturedCameraBlob=null;
-  if(modal){ modal.hidden=true; modal.setAttribute('aria-hidden','true'); }
-}
-async function startCameraStream(){
-  const video=document.getElementById('cameraVideo'); if(!video) return;
-  if(!navigator.mediaDevices?.getUserMedia){ setCameraStatus('Live camera is unavailable. Choose a photo instead.',true); document.getElementById('cameraFileFallback')?.click(); return; }
-  try{
-    cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
-    video.srcObject=cameraStream; await video.play(); setCameraStatus('Position the question paper inside the frame, then tap Capture.');
-  }catch(err){ console.warn('Camera access failed:',err); setCameraStatus('Camera access was blocked or unavailable. Choose a photo instead.',true); document.getElementById('cameraFileFallback')?.click(); }
-}
-function openCameraScanner(){
-  const modal=document.getElementById('cameraModal'); if(!modal) return;
-  modal.hidden=false; modal.setAttribute('aria-hidden','false'); setCameraStatus('Starting camera…'); startCameraStream();
-}
-function captureCameraFrame(){
-  const video=document.getElementById('cameraVideo'), canvas=document.getElementById('cameraCanvas');
-  const preview=document.getElementById('cameraPreview'), capture=document.getElementById('cameraCaptureBtn'), use=document.getElementById('cameraUseBtn'), retake=document.getElementById('cameraRetakeBtn');
-  if(!video||!canvas||!video.videoWidth){ setCameraStatus('Camera is not ready yet. Please wait a moment.',true); return; }
-  canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-  const ctx=canvas.getContext('2d',{alpha:false}); ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  canvas.toBlob(blob=>{
-    if(!blob){setCameraStatus('Could not capture the image.',true);return;}
-    capturedCameraBlob=blob; if(preview.src) URL.revokeObjectURL(preview.src); preview.src=URL.createObjectURL(blob); preview.hidden=false; video.hidden=true; capture.hidden=true; use.hidden=false; retake.hidden=false; stopCameraStream(); setCameraStatus('Photo captured. Use OCR to read the page into the question-set editor.');
-  },'image/jpeg',.92);
-}
-function retakeCameraFrame(){
-  const preview=document.getElementById('cameraPreview'), video=document.getElementById('cameraVideo'), capture=document.getElementById('cameraCaptureBtn'), use=document.getElementById('cameraUseBtn'), retake=document.getElementById('cameraRetakeBtn');
-  if(preview?.src) URL.revokeObjectURL(preview.src); capturedCameraBlob=null; if(preview){preview.hidden=true;preview.removeAttribute('src');} if(video) video.hidden=false; if(capture) capture.hidden=false; if(use) use.hidden=true; if(retake) retake.hidden=true; setCameraStatus('Starting camera…'); startCameraStream();
-}
-async function useCapturedPhoto(){
-  if(!capturedCameraBlob) return; setCameraStatus('Preparing OCR…');
-  try{
-    if(!window.Tesseract){ await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';script.onload=resolve;script.onerror=()=>reject(new Error('OCR library could not be loaded.'));document.head.appendChild(script);}); }
-    setCameraStatus('Reading the page…');
-    const result=await window.Tesseract.recognize(capturedCameraBlob,'eng',{logger:m=>{if(m?.status&&typeof m.progress==='number')setCameraStatus(`Reading the page… ${Math.round(m.progress*100)}%`);}});
-    const text=(result?.data?.text||'').trim(); if(!text) throw new Error('No readable text was found in the photo.');
-    closeCameraScanner(); openDashboardLoader('OCR text is ready. Review or format it as a question set before loading.');
-    const hysom=document.getElementById('hysomInput'); if(hysom){hysom.value=text;hysom.focus();hysom.scrollIntoView({behavior:'smooth',block:'center'});}
-  }catch(err){console.warn('OCR failed:',err);setCameraStatus(`${err.message||'OCR failed.'} You can retake the photo or choose another image.`,true);}
-}
-function handleCameraFallback(event){
-  const file=event.target.files?.[0]; if(!file)return; const preview=document.getElementById('cameraPreview'),video=document.getElementById('cameraVideo'),capture=document.getElementById('cameraCaptureBtn'),use=document.getElementById('cameraUseBtn'),retake=document.getElementById('cameraRetakeBtn');
-  capturedCameraBlob=file; if(preview?.src)URL.revokeObjectURL(preview.src); if(preview){preview.src=URL.createObjectURL(file);preview.hidden=false;} if(video)video.hidden=true;if(capture)capture.hidden=true;if(use)use.hidden=false;if(retake)retake.hidden=false;setCameraStatus('Photo selected. Use OCR to read the question paper.');
-}
-
-function getSavedProjectRows(){
-  return [...savedProjects].sort((a,b) => a.project_number - b.project_number);
-}
-
-function openDashboardSearch(){
-  const overlay=document.getElementById('dashboardSearchOverlay');
-  const input=document.getElementById('dashboardSearchInput');
-  if(!overlay || !input) return;
-  overlay.hidden=false; overlay.setAttribute('aria-hidden','false');
-  renderDashboardSearchResults('');
-  setTimeout(()=>input.focus(),0);
-}
-
-function closeDashboardSearch(){
-  const overlay=document.getElementById('dashboardSearchOverlay');
-  if(overlay){ overlay.hidden=true; overlay.setAttribute('aria-hidden','true'); }
-}
-
-function renderDashboardSearchResults(query){
-  const list=document.getElementById('dashboardSearchResults');
-  if(!list) return;
-  const q=String(query||'').trim().toLowerCase();
-  const rows=getSavedProjectRows().filter(row => {
-    const title=row.paper?.title || `Project ${row.project_number}`;
-    return !q || title.toLowerCase().includes(q) || String(row.project_number).includes(q);
-  });
-  if(!rows.length){ list.innerHTML='<div class="dashboard-search-empty">No saved papers found.</div>'; return; }
-  list.innerHTML=rows.map(row=>{
-    const title=escapeHtml(row.paper?.title || `Project ${row.project_number}`);
-    return `<button type="button" class="dashboard-search-result" data-project-id="${escapeHtml(row.id)}"><strong>Project ${row.project_number}</strong><span>${title}</span></button>`;
-  }).join('');
-  list.querySelectorAll('[data-project-id]').forEach(btn=>btn.addEventListener('click',()=>{
-    const row=savedProjects.find(p=>String(p.id)===String(btn.dataset.projectId));
-    if(!row) return;
-    closeDashboardSearch();
-    try{
-      applyProjectPaper(row.paper); testStarted=true; testPaused=false; submitted=false; timeUp=false;
-      paletteCurrentIndex=0; visitedQuestions=new Set([0]); markedQuestions=new Set(); selectedAnswers={}; clearTestSession();
-      document.querySelector('.loader-panel')?.classList.remove('saved-only-mode');
-      document.getElementById('appShell')?.classList.remove('saved-view');
-      document.getElementById('homeScreen').style.display='none'; document.getElementById('appShell').classList.add('active');
-      buildQuiz(false); closeLoaderIfOpen(); window.scrollTo({top:0,behavior:'smooth'});
-    }catch(e){ console.warn(e); }
-  }));
-}
-
-function handleDashboardNav(key){
-  switch(key){
-    case 'home':
-      setDashboardActive('home');
-      showHome();
-      break;
-    case 'exams':
-      dashboardStartTest();
-      break;
-    case 'saved':
-      setDashboardActive('saved');
-      openSavedProjectsOnly();
-      break;
-    case 'scan':
-      openCameraScanner();
-      break;
-    case 'recommendation':
-      openDashboardLoader('Recommendations are based on the question sets available in your library.');
-      break;
-    case 'performance':
-      setDashboardActive('performance');
-      renderDashboardPerformance();
-      document.getElementById('dashboardPerformancePanel')?.scrollIntoView({behavior:'smooth', block:'start'});
-      break;
-    case 'search':
-      openDashboardSearch();
-      break;
-    case 'more':
-      setDashboardActive('saved');
-      openSavedProjectsOnly();
-      break;
-    case 'profile':
-      renameStudent();
-      break;
-    case 'logout':
-      logoutUser();
-      break;
-  }
-}
-
-function renderDashboardProjects(){
-  const list = document.getElementById('dashboardPendingList');
-  if (!list) return;
-  list.innerHTML = '';
-  let state = null;
-  try { state = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch(e) {}
-  if (!state || !state.active || !Array.isArray(state.currentData) || !state.currentData.some(item => item && item.q)) {
-    list.innerHTML = '<div class="dashboard-empty-state">No unfinished tests. Start a test and it will appear here until submitted.</div>';
-    return;
-  }
-  const questions = state.currentData.filter(item => item && item.q);
-  const answeredCount = Object.keys(state.answers || {}).length;
-  const title = state.title || 'Unfinished Test';
-  const total = questions.length;
-  const remainingMins = Math.max(0, Math.ceil(Number(state.remaining || 0) / 60));
-  const article = document.createElement('article');
-  article.className = 'pending-item dashboard-generated-project';
-  article.innerHTML = `<div class="pending-icon project-icon">▶</div><div class="pending-details"><div class="pending-title-row"><strong>${escapeHtml(title)}</strong><span>In progress</span></div><div class="pending-meta"><span><small>Progress</small>${answeredCount}/${total} answered</span><span><small>Remaining</small>${remainingMins} mins</span><span><small>Pass Mark</small>60%</span></div></div>`;
-  article.addEventListener('click', () => {
-    try {
-      restoreTestSession();
-      document.getElementById('homeScreen').style.display='none';
-      document.getElementById('appShell').classList.add('active');
-      window.scrollTo(0,0);
-    } catch(e) { console.warn(e); }
-  });
-  list.appendChild(article);
-}
-
-function bindDashboard(){
-  document.querySelectorAll('[data-dashboard-nav]').forEach(btn => {
-    if (btn.dataset.dashboardBound) return;
-    btn.addEventListener('click', () => handleDashboardNav(btn.dataset.dashboardNav));
-    btn.dataset.dashboardBound = '1';
-  });
-  document.querySelectorAll('[data-camera-close]').forEach(el => { if (!el.dataset.cameraBound) { el.addEventListener('click', closeCameraScanner); el.dataset.cameraBound='1'; } });
-  const captureBtn=document.getElementById('cameraCaptureBtn'); if(captureBtn&&!captureBtn.dataset.cameraBound){captureBtn.addEventListener('click',captureCameraFrame);captureBtn.dataset.cameraBound='1';}
-  const retakeBtn=document.getElementById('cameraRetakeBtn'); if(retakeBtn&&!retakeBtn.dataset.cameraBound){retakeBtn.addEventListener('click',retakeCameraFrame);retakeBtn.dataset.cameraBound='1';}
-  const useBtn=document.getElementById('cameraUseBtn'); if(useBtn&&!useBtn.dataset.cameraBound){useBtn.addEventListener('click',useCapturedPhoto);useBtn.dataset.cameraBound='1';}
-  const fallback=document.getElementById('cameraFileFallback'); if(fallback&&!fallback.dataset.cameraBound){fallback.addEventListener('change',handleCameraFallback);fallback.dataset.cameraBound='1';}
-  const more = document.getElementById('dashboardViewMore');
-  if (more && !more.dataset.dashboardBound){
-    more.addEventListener('click', () => openSavedProjectsOnly());
-    more.dataset.dashboardBound = '1';
-  }
-  updateDashboardIdentity();
-  renderDashboardProjects();
-  renderDashboardPerformance();
 }
 
 // UI controls
@@ -889,7 +1270,6 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
 // init
 (async function init(){
-  bindDashboard();
   const connected = await initSupabase();
   if (!connected) return;
 

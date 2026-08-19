@@ -7,85 +7,11 @@
 </head>
 <body>
 
-<div class="login-screen" id="loginScreen" hidden>
-  <div class="login-card">
-    <div class="login-brand">prelimsify</div>
-    <h1>Welcome back</h1>
-    <p>Sign in with your Google account to continue to your learning dashboard.</p>
-    <button class="google-login-btn" id="googleLoginBtn" type="button" onclick="loginWithGoogle()">
-      <span class="google-mark" aria-hidden="true">G</span>
-      <span>Continue with Google</span>
-    </button>
-    <div class="login-error" id="loginError" role="alert"></div>
-    <small class="login-note">Your account is used to keep your student session secure.</small>
-  </div>
-</div>
-
-
-<div class="home-screen dashboard-screen" id="homeScreen">
-  <div class="dashboard-shell">
-    <aside class="dashboard-sidebar" aria-label="Main navigation">
-      <div class="brand-block">
-        <div class="brand-name">prelimsify</div>
-        <div class="brand-tagline">The Prelims sahchari</div>
-      </div>
-      <nav class="side-nav">
-        <button class="side-nav-item active" type="button" data-dashboard-nav="home"><span class="nav-icon">⌂</span><span>Home</span></button>
-        <button class="side-nav-item" type="button" data-dashboard-nav="exams"><span class="nav-icon">◇</span><span>Exams</span></button>
-        <button class="side-nav-item" type="button" data-dashboard-nav="performance"><span class="nav-icon">▥</span><span>Performance</span></button>
-        <button class="side-nav-item" type="button" data-dashboard-nav="saved"><span class="nav-icon">□</span><span>Saved Papers</span></button>
-      </nav>
-      <button class="side-logout" type="button" data-dashboard-nav="logout"><span class="nav-icon">↪</span><span>Logout</span></button>
-    </aside>
-
-    <main class="dashboard-main">
-      <header class="dashboard-header">
-        <div>
-          <div class="dashboard-greeting">Hello, <span id="dashboardUserName">Student</span></div>
-          <div class="dashboard-school">Prelimsify Learning Platform</div>
-        </div>
-        <div class="dashboard-header-actions">
-          <button class="header-icon-btn" type="button" data-dashboard-nav="profile" title="Rename student" aria-label="Rename student">♧</button>
-          <button class="header-icon-btn" type="button" data-dashboard-nav="search" title="Search saved papers" aria-label="Search saved papers">⌕</button>
-        </div>
-      </header>
-
-      <section class="pending-card">
-        <div class="pending-header"><span>Pending Work</span><button type="button" class="collapse-btn" aria-label="Collapse pending work">⌃</button></div>
-        <div class="pending-list" id="dashboardPendingList">
-          <div class="dashboard-empty-state">No unfinished tests. Start a test and it will appear here until submitted.</div>
-        </div>
-        <button class="view-more-btn" id="dashboardViewMore" type="button">View More</button>
-      </section>
-
-      <section class="dashboard-performance-panel" id="dashboardPerformancePanel" hidden>
-        <div class="performance-panel-header"><strong>Grade History</strong><span>Your completed tests</span></div>
-        <div id="dashboardPerformanceList" class="performance-history-list"></div>
-      </section>
-
-      <div class="dashboard-actions-card">
-        <div class="quick-action-copy"><strong>Ready for a test?</strong><span>Load a question set or start the built-in paper.</span></div>
-        <button class="btn dashboard-start-btn" id="startTestBtn" type="button">Start Test</button>
-      </div>
-    </main>
-
-    <nav class="dashboard-bottom-nav" aria-label="Mobile navigation">
-      <button type="button" class="bottom-nav-item active" data-dashboard-nav="home"><span>⌂</span><small>Home</small></button>
-      <button type="button" class="bottom-nav-item" data-dashboard-nav="performance"><span>▥</span><small>Performance</small></button>
-      <button type="button" class="scan-button" data-dashboard-nav="scan" aria-label="Open camera scanner" title="Scan with camera">
-        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M20 19h7l4-6h8l4 6h1c5 0 9 4 9 9v18c0 5-4 9-9 9H20c-5 0-9-4-9-9V28c0-5 4-9 9-9Z"/><circle cx="32" cy="37" r="10"/><circle cx="32" cy="37" r="5"/></svg>
-      </button>
-      <button type="button" class="bottom-nav-item" data-dashboard-nav="exams"><span>◇</span><small>Exams</small></button>
-      <button type="button" class="bottom-nav-item" data-dashboard-nav="more"><span>□</span><small>Saved</small></button>
-    </nav>
-  </div>
-</div>
-
-<div class="dashboard-search-overlay" id="dashboardSearchOverlay" hidden aria-hidden="true">
-  <div class="dashboard-search-card" role="dialog" aria-modal="true" aria-labelledby="dashboardSearchTitle">
-    <div class="dashboard-search-head"><strong id="dashboardSearchTitle">Search Saved Papers</strong><button type="button" class="dashboard-search-close" id="dashboardSearchClose" aria-label="Close search">×</button></div>
-    <input id="dashboardSearchInput" type="search" placeholder="Search saved paper name…" autocomplete="off">
-    <div id="dashboardSearchResults" class="dashboard-search-results"></div>
+<div class="home-screen" id="homeScreen">
+  <div class="home-content">
+    <h1>prelimsify</h1>
+    <p>The Prelims sahchari</p>
+    <button class="btn" id="startTestBtn" type="button">Start Test</button>
   </div>
 </div>
 
@@ -137,7 +63,8 @@ D. 1, 2 and 3
     </div>
     <div class="loader-row">
       <label style="font-weight:400;">Pass mark:</label>
-      <input type="number" id="passMarkInput" value="120" style="width:70px; font-family:var(--sans); font-size:12px; padding:4px;">
+      <input type="number" id="passMarkInput" value="60" min="60" max="60" readonly aria-label="Pass mark percentage" style="width:70px; font-family:var(--sans); font-size:12px; padding:4px;">
+      <span style="font-size:11px;">%</span>
     </div>
     <div class="loader-msg" id="loaderMsg"></div>
     <div class="saved-panel">
@@ -222,30 +149,5 @@ D. 1, 2 and 3
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/app.js"></script>
-
-<!-- Camera scanner -->
-<div class="camera-modal" id="cameraModal" hidden aria-hidden="true">
-  <div class="camera-backdrop" data-camera-close></div>
-  <section class="camera-dialog" role="dialog" aria-modal="true" aria-labelledby="cameraTitle">
-    <div class="camera-dialog-head">
-      <div><strong id="cameraTitle">Scan with Camera</strong><span>Capture a question paper or page</span></div>
-      <button class="camera-close" type="button" data-camera-close aria-label="Close camera">×</button>
-    </div>
-    <div class="camera-stage">
-      <video id="cameraVideo" autoplay playsinline muted></video>
-      <canvas id="cameraCanvas" hidden></canvas>
-      <img id="cameraPreview" alt="Captured page preview" hidden>
-      <div class="camera-guide" aria-hidden="true"></div>
-      <div class="camera-status" id="cameraStatus">Allow camera access to begin scanning.</div>
-    </div>
-    <div class="camera-actions">
-      <button class="btn secondary" type="button" id="cameraRetakeBtn" hidden>Retake</button>
-      <button class="btn" type="button" id="cameraCaptureBtn">Capture</button>
-      <button class="btn" type="button" id="cameraUseBtn" hidden>Use Photo / OCR</button>
-    </div>
-    <input type="file" id="cameraFileFallback" accept="image/*" capture="environment" hidden>
-  </section>
-</div>
-
 </body>
 </html>
