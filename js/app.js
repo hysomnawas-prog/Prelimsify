@@ -227,7 +227,6 @@ function restoreTestSession(){
     currentData = state.currentData;
     MARK_CORRECT = Number(state.markCorrect ?? 2);
     MARK_WRONG = Number(state.markWrong ?? -0.66);
-    // Ignore legacy session passPercent values; every test passes at 60%.
     PASS_PERCENT = 60;
     remaining = Math.max(0, Number(state.remaining) || 0);
     testPaused = !!state.paused;
@@ -414,6 +413,7 @@ async function loadSavedProjects(){
     if (error) throw error;
     savedProjects = data || [];
     renderSavedProjects();
+    renderDashboardProjects();
   }catch(e){
     console.error('Could not load saved projects:', e);
     setLoaderMsg('Could not load saved projects: ' + (e.message || e), false);
@@ -427,7 +427,7 @@ function makeProjectPaper(){
     questions: currentData,
     markCorrect: MARK_CORRECT,
     markWrong: MARK_WRONG,
-    passPercent: 60,
+    passPercent: PASS_PERCENT,
     timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120)
   };
 }
@@ -444,7 +444,6 @@ function applyProjectPaper(projectPaper){
   currentData = questions;
   MARK_CORRECT = Number(payload.markCorrect ?? 2);
   MARK_WRONG = Number(payload.markWrong ?? -0.66);
-  // Ignore legacy per-project passPercent values so every test uses 60%.
   PASS_PERCENT = 60;
 
   const mins = Number(payload.timeLimitMins ?? 120);
@@ -504,6 +503,7 @@ async function saveCurrentQuestionSet(){
     savedProjects.push(data);
     savedProjects.sort((a,b) => a.project_number - b.project_number);
     renderSavedProjects();
+    renderDashboardProjects();
     setLoaderMsg(`Project "${cleanName}" saved.`, true);
   }catch(e){
     console.error('Could not save project:', e);
@@ -734,8 +734,6 @@ function loadQuestionSet(parsed, successMessage){
   const mw = parseFloat(document.getElementById('markWrongInput').value);
   MARK_CORRECT = isNaN(mc) ? 2 : mc;
   MARK_WRONG = isNaN(mw) ? -0.66 : mw;
-  // All question sets use the same 60% passing threshold.
-  // The actual pass mark is calculated from this paper's own maximum marks.
   PASS_PERCENT = 60;
   remaining = Math.round(mins * 60);
   currentData = parsed;
@@ -1229,6 +1227,132 @@ function closeResult(){
   document.getElementById('resultOverlay').classList.remove('open');
 }
 
+// ================= Dashboard interactions =================
+function dashboardDisplayName(){
+  const email = supabaseUser?.email || '';
+  if (email){
+    const local = email.split('@')[0].replace(/[._-]+/g,' ').trim();
+    if (local) return local.replace(/\b\w/g, ch => ch.toUpperCase());
+  }
+  return 'Student';
+}
+
+function updateDashboardIdentity(){
+  const el = document.getElementById('dashboardUserName');
+  if (el) el.textContent = dashboardDisplayName();
+}
+
+function setDashboardActive(key){
+  document.querySelectorAll('[data-dashboard-nav]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.dashboardNav === key);
+  });
+}
+
+function openDashboardLoader(message){
+  setDashboardActive('library');
+  const app = document.getElementById('appShell');
+  const home = document.getElementById('homeScreen');
+  home.style.display = 'none';
+  app.classList.add('active');
+  setTestPaletteVisibility(false);
+  const loaderBody = document.getElementById('loaderBody');
+  if (loaderBody) loaderBody.classList.add('open');
+  if (message) setLoaderMsg(message, true);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function dashboardStartTest(){
+  setDashboardActive('exams');
+  showTest();
+}
+
+function handleDashboardNav(key){
+  switch(key){
+    case 'home':
+      setDashboardActive('home');
+      showHome();
+      break;
+    case 'exams':
+      dashboardStartTest();
+      break;
+    case 'library':
+    case 'saved':
+      openDashboardLoader('Your question-set library is ready. Load a saved or new paper below.');
+      break;
+    case 'homework':
+      openDashboardLoader('Homework mode: choose a question set to work on.');
+      break;
+    case 'scan':
+      openDashboardLoader('Scan / import a question paper using the loader below.');
+      const file = document.getElementById('fileInput');
+      if (file) setTimeout(() => file.click(), 100);
+      break;
+    case 'recommendation':
+      openDashboardLoader('Recommendations are based on the question sets available in your library.');
+      break;
+    case 'performance':
+      openDashboardLoader('Performance is shown after you complete and submit a test.');
+      break;
+    case 'search':
+      openDashboardLoader('Use the question-set loader to find or load your paper.');
+      break;
+    case 'settings':
+    case 'more':
+      openDashboardLoader('Settings and additional tools are available in the test workspace.');
+      break;
+    case 'logout':
+      if (supabaseClient) supabaseClient.auth.signOut().catch(e => console.warn(e));
+      showHome();
+      break;
+  }
+}
+
+function renderDashboardProjects(){
+  const list = document.getElementById('dashboardPendingList');
+  const template = document.getElementById('dashboardProjectTemplate');
+  if (!list || !template) return;
+  list.querySelectorAll('.dashboard-generated-project').forEach(el => el.remove());
+  const projects = Array.isArray(savedProjects) ? savedProjects.slice(0, 3) : [];
+  projects.forEach(project => {
+    const clone = template.cloneNode(true);
+    clone.hidden = false;
+    clone.removeAttribute('id');
+    clone.classList.add('dashboard-generated-project');
+    const paper = project.paper || {};
+    const questions = Array.isArray(paper.questions) ? paper.questions.filter(q => q && q.q) : [];
+    clone.querySelector('.project-title').textContent = paper.title || `Question Set ${project.project_number || ''}`;
+    clone.querySelector('.project-count').textContent = questions.length;
+    clone.querySelector('.project-time').textContent = `${Number(paper.timeLimitMins || 120)} mins`;
+    clone.addEventListener('click', () => {
+      try{
+        applyProjectPaper(paper);
+        document.getElementById('homeScreen').style.display = 'none';
+        document.getElementById('appShell').classList.add('active');
+        testStarted = true;
+        setTestPaletteVisibility(true);
+        buildQuiz(false);
+        window.scrollTo(0,0);
+      }catch(e){ setLoaderMsg('Could not open this question set: ' + (e.message || e), false); }
+    });
+    list.appendChild(clone);
+  });
+}
+
+function bindDashboard(){
+  document.querySelectorAll('[data-dashboard-nav]').forEach(btn => {
+    if (btn.dataset.dashboardBound) return;
+    btn.addEventListener('click', () => handleDashboardNav(btn.dataset.dashboardNav));
+    btn.dataset.dashboardBound = '1';
+  });
+  const more = document.getElementById('dashboardViewMore');
+  if (more && !more.dataset.dashboardBound){
+    more.addEventListener('click', () => openDashboardLoader('Open Saved Projects below to view all your question sets.'));
+    more.dataset.dashboardBound = '1';
+  }
+  updateDashboardIdentity();
+  renderDashboardProjects();
+}
+
 // UI controls
 document.getElementById('startTestBtn').addEventListener('click', showTest);
 const zoomInBtn = document.getElementById('zoomInBtn');
@@ -1270,6 +1394,7 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 
 // init
 (async function init(){
+  bindDashboard();
   const connected = await initSupabase();
   if (!connected) return;
 
