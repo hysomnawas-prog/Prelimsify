@@ -200,7 +200,7 @@ function saveTestSession(){
       currentData,
       markCorrect: MARK_CORRECT,
       markWrong: MARK_WRONG,
-      passPercent: PASS_PERCENT,
+      passPercent: 60,
       remaining,
       paused: testPaused,
       answers,
@@ -227,7 +227,8 @@ function restoreTestSession(){
     currentData = state.currentData;
     MARK_CORRECT = Number(state.markCorrect ?? 2);
     MARK_WRONG = Number(state.markWrong ?? -0.66);
-    PASS_PERCENT = Number(state.passPercent ?? 60);
+    // Ignore legacy session passPercent values; every test passes at 60%.
+    PASS_PERCENT = 60;
     remaining = Math.max(0, Number(state.remaining) || 0);
     testPaused = !!state.paused;
     restoredAnswers = state.answers || {};
@@ -426,7 +427,7 @@ function makeProjectPaper(){
     questions: currentData,
     markCorrect: MARK_CORRECT,
     markWrong: MARK_WRONG,
-    passPercent: PASS_PERCENT,
+    passPercent: 60,
     timeLimitMins: Math.max(1, Number(document.getElementById('timeLimitInput').value) || 120)
   };
 }
@@ -443,7 +444,8 @@ function applyProjectPaper(projectPaper){
   currentData = questions;
   MARK_CORRECT = Number(payload.markCorrect ?? 2);
   MARK_WRONG = Number(payload.markWrong ?? -0.66);
-  PASS_PERCENT = Number(payload.passPercent ?? 60);
+  // Ignore legacy per-project passPercent values so every test uses 60%.
+  PASS_PERCENT = 60;
 
   const mins = Number(payload.timeLimitMins ?? 120);
   remaining = Math.round(Math.max(1, mins) * 60);
@@ -730,11 +732,11 @@ function loadQuestionSet(parsed, successMessage){
   const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
   const mc = parseFloat(document.getElementById('markCorrectInput').value);
   const mw = parseFloat(document.getElementById('markWrongInput').value);
-  const pp = parseFloat(document.getElementById('passMarkInput').value);
-
   MARK_CORRECT = isNaN(mc) ? 2 : mc;
   MARK_WRONG = isNaN(mw) ? -0.66 : mw;
-  PASS_PERCENT = isNaN(pp) ? 60 : Math.min(100, Math.max(0, pp));
+  // All question sets use the same 60% passing threshold.
+  // The actual pass mark is calculated from this paper's own maximum marks.
+  PASS_PERCENT = 60;
   remaining = Math.round(mins * 60);
   currentData = parsed;
   buildQuiz();
