@@ -762,3 +762,60 @@
 .performance-history-score{display:flex;flex-direction:column;align-items:flex-end;gap:3px}.performance-history-score strong{font-size:18px;color:#1755e8}.performance-history-score span{font-size:12px;color:#7b8191}
 .performance-badge{min-width:56px;text-align:center;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700}.performance-badge.pass{background:#e6f7ee;color:#15945a}.performance-badge.fail{background:#fff0f1;color:#dc3d52}
 @media(max-width:760px){.performance-history-row{grid-template-columns:1fr auto;gap:10px}.performance-badge{grid-column:2;grid-row:1}.performance-history-score{grid-column:1;align-items:flex-start}.performance-panel-header{padding:17px 18px}.performance-history-list{padding:0 12px}}
+
+
+/* ================= Final monochrome dashboard theme ================= */
+:root{
+  --brand-primary:#000;
+  --brand-primary-dark:#111;
+  --brand-secondary:#666;
+  --brand-accent:#333;
+  --dashboard-bg:#f4f4f4;
+  --dashboard-ink:#000;
+  --dashboard-muted:#666;
+  --dashboard-line:#ddd;
+}
+.dashboard-screen,.dashboard-shell{background:#f4f4f4;color:#000}
+.brand-name{color:#000}
+.brand-tagline,.dashboard-school{color:#666}
+.side-nav-item,.side-logout{color:#000}
+.side-nav-item:hover,.side-nav-item.active{background:#ededed;color:#000;box-shadow:inset 3px 0 0 #000}
+.side-logout,.side-logout:hover{color:#000;background:transparent}
+.header-icon-btn{color:#000;box-shadow:0 5px 18px rgba(0,0,0,.07)}
+.notification-dot{background:#000}
+.pending-card,.dashboard-actions-card,.dashboard-performance-panel{box-shadow:0 10px 32px rgba(0,0,0,.08)}
+.pending-header{background:#000;color:#fff}
+.collapse-btn{color:#fff}
+.pending-icon,.maths-icon,.english-icon,.project-icon{background:#f0f0f0;color:#000}
+.pending-title-row strong{color:#000}
+.pending-title-row span,.pending-meta small{color:#666}
+.view-more-btn{color:#000}
+.dashboard-start-btn{background:#000;border-color:#000;color:#fff}
+.dashboard-bottom-nav{box-shadow:0 12px 38px rgba(0,0,0,.15)}
+.bottom-nav-item{color:#666}
+.bottom-nav-item.active{color:#000}
+.scan-button{background:#000;color:#fff;box-shadow:0 7px 18px rgba(0,0,0,.28)}
+.dashboard-empty-state{color:#666;background:#fafafa}
+.pending-item.dashboard-generated-project:hover{background:#f5f5f5}
+.performance-panel-header strong{color:#000}
+.performance-panel-header span,.performance-history-main span,.performance-history-score span{color:#666}
+.performance-history-main strong{color:#000}
+.performance-history-score strong{color:#000}
+.performance-badge.pass,.performance-badge.fail{background:#eee;color:#000}
+.dashboard-actions-card{color:#000}
+
+/* Monochrome question workspace as well: no colored palette/status accents. */
+.palette-btn,.palette-btn.not-visited,.palette-btn.marked,.palette-btn.answered-marked{background:#000;color:#fff}
+.palette-btn.not-answered,.palette-btn.answered{background:#777;color:#fff}
+.palette-btn.answered-marked::after{background:#000;color:#fff}
+.legend-icon.not-visited,.legend-icon.marked,.legend-icon.answered-marked{background:#000;color:#fff}
+.legend-icon.not-answered,.legend-icon.answered{background:#777;color:#fff}
+.legend-icon.answered-marked::after{background:#000;color:#fff}
+.opt.correct,.opt.wrong{background:#eee;border-color:#000;color:#000}
+.opt.correct .letter,.opt.wrong .letter{color:#000}
+.feedback.right,.feedback.wrong{color:#000}
+.result-card.pass .marks,.result-card.fail .marks{color:#000}
+.result-card.pass .badge,.result-card.fail .badge{background:#000;color:#fff}
+.loader-msg.err,.loader-msg.ok{color:#000}
+.saved-delete{color:#000}
+.saved-delete:hover{background:#eee}
