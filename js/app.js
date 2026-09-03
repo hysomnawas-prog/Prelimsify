@@ -9,13 +9,15 @@ const SUPABASE_URL = "https://fzwsmvwvraruktyyiscr.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_";
 
 const SAVED_PROJECTS_TABLE = "quiz_projects";
-const TEST_HISTORY_TABLE = "test_history";
+const TEST_HISTORY_TABLE = "test_scores";
 const LOCAL_HISTORY_KEY = "prelimsify_score_history";
 const LOCAL_SAVED_PROJECTS_KEY = "prelimsify_saved_projects";
 let supabaseClient = null;
 let supabaseUser = null;
 let currentProfile = null;
 let currentTestTitle = 'Prelimsify Test';
+let currentProjectId = null;
+let currentProjectNumber = null;
 
 const DEFAULT_DATA = [
 {s:"SECTION A — ANCIENT HISTORY & ART/CULTURE"},
@@ -450,11 +452,21 @@ async function loadScoreHistory(){
     return;
   }
   try{
-    const {data,error}=await supabaseClient.from('scoreboard_entries')
-      .select('id,username,title,marks,max_marks,percentage,passed,correct,wrong,unanswered,completed_at')
-      .order('completed_at',{ascending:false}).limit(200);
-    if(error)throw error;
-    renderScoreHistory(data||[],'Shared scoreboard');
+    // Load every scoreboard row in pages instead of stopping at Supabase's
+    // default row limit. All authenticated users can read the shared view.
+    const pageSize = 1000;
+    const allRows = [];
+    for(let from = 0; ; from += pageSize){
+      const {data,error}=await supabaseClient.from('scoreboard_entries')
+        .select('id,user_id,username,title,project_number,marks,max_marks,percentage,passed,correct,wrong,unanswered,completed_at')
+        .order('completed_at',{ascending:false})
+        .range(from, from + pageSize - 1);
+      if(error)throw error;
+      const page = data || [];
+      allRows.push(...page);
+      if(page.length < pageSize) break;
+    }
+    renderScoreHistory(allRows,'Shared scoreboard');
   }catch(e){
     console.warn('Scoreboard could not be loaded:',e);
     renderScoreHistory([], 'Scoreboard is temporarily unavailable.');
@@ -462,21 +474,32 @@ async function loadScoreHistory(){
 }
 async function saveScoreHistory(){
   if(historySavedForSubmission)return;
-  historySavedForSubmission=true;
   if(!supabaseClient||!supabaseUser)return;
+
   const maxMarks=total*MARK_CORRECT;
   const percentage=maxMarks?(marks/maxMarks)*100:0;
   const passMark=maxMarks*(PASS_PERCENT/100);
+  const exactTestName=(currentTestTitle||'Prelimsify Test').trim()||'Prelimsify Test';
   const row={
-    title:(currentTestTitle||'Prelimsify Test').trim()||'Prelimsify Test',
-    marks:Number(marks.toFixed(2)),max_marks:Number(maxMarks.toFixed(2)),percentage:Number(percentage.toFixed(2)),
-    passed:marks>=passMark,correct:correctCount,wrong:wrongCount,unanswered:Math.max(0,total-answered),completed_at:new Date().toISOString()
+    test_name:exactTestName,
+    project_number:Number.isFinite(Number(currentProjectNumber)) ? Number(currentProjectNumber) : null,
+    marks:Number(marks.toFixed(2)),
+    max_marks:Number(maxMarks.toFixed(2)),
+    percentage:Number(percentage.toFixed(2)),
+    passed:marks>=passMark,
+    correct:correctCount,
+    wrong:wrongCount,
+    unanswered:Math.max(0,total-answered),
+    completed_at:new Date().toISOString()
   };
   try{
     const {error}=await supabaseClient.from(TEST_HISTORY_TABLE).insert({...row,user_id:supabaseUser.id});
     if(error)throw error;
+    historySavedForSubmission=true;
     await loadScoreHistory();
   }catch(e){
+    // Do not mark it as saved when the database insert failed, so a later
+    // successful retry is still possible.
     console.warn('Score history could not be saved to Supabase:',e);
   }
 }
@@ -505,19 +528,11 @@ async function loadSavedProjects(){
   if (!supabaseClient || !supabaseUser) return;
 
   try{
-    // Admins can see all saved question sets. This also restores sets that
-    // were saved under an older/orphaned account while keeping normal users
-    // restricted to their own projects.
-    let query = supabaseClient
+    const { data, error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
       .select('id,user_id,project_number,paper,saved_at')
+      .eq('user_id', supabaseUser.id)
       .order('project_number', { ascending:true });
-
-    if (currentProfile?.role !== 'admin') {
-      query = query.eq('user_id', supabaseUser.id);
-    }
-
-    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -595,6 +610,8 @@ async function saveCurrentQuestionSet(){
   const nextProject = savedProjects.length
     ? Math.max(...savedProjects.map(row => Number(row.project_number) || 0)) + 1
     : 1;
+  currentProjectId = null;
+  currentProjectNumber = nextProject;
 
   // Save on this device first — this guarantees the project shows up in Saved
   // Projects immediately, even if Supabase is slow, blocked, or the session
@@ -723,7 +740,16 @@ function renderSavedProjects(){
     name.title = 'Load this question set';
     name.onclick = () => {
       try{
-        applyProjectPaper(row.paper);
+        currentProjectId = row.id || null;
+        currentProjectNumber = Number.isFinite(Number(row.project_number)) ? Number(row.project_number) : null;
+        historySavedForSubmission = false;
+        // The scoreboard name is always taken from the saved project's title.
+        // This prevents the score from being stored under a generic/default name.
+        const savedTitle = String(row.paper?.title || `Project ${row.project_number}`).trim();
+        currentTestTitle = savedTitle || `Project ${row.project_number}`;
+        const titleEl = document.getElementById('titleText');
+        if (titleEl) titleEl.textContent = currentTestTitle;
+        applyProjectPaper({...row.paper, title: currentTestTitle});
         testStarted = true;
         testPaused = false;
         submitted = false;
@@ -858,6 +884,9 @@ function loadHysomFromTextarea(){
 }
 
 function loadQuestionSet(parsed, successMessage){
+  currentProjectId = null;
+  currentProjectNumber = null;
+  historySavedForSubmission = false;
   const mins = parseFloat(document.getElementById('timeLimitInput').value) || 120;
   const mc = parseFloat(document.getElementById('markCorrectInput').value);
   const mw = parseFloat(document.getElementById('markWrongInput').value);
