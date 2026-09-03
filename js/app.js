@@ -9,6 +9,8 @@ const SUPABASE_URL = "https://fzwsmvwvraruktyyiscr.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_";
 
 const SAVED_PROJECTS_TABLE = "quiz_projects";
+const TEST_HISTORY_TABLE = "test_history";
+const LOCAL_HISTORY_KEY = "prelimsify_score_history";
 let supabaseClient = null;
 let supabaseUser = null;
 
@@ -149,6 +151,7 @@ let remaining = 120 * 60;
 let savedProjects = [];
 let testStarted = false;
 let testPaused = false;
+let historySavedForSubmission = false;
 
 const TEXT_ZOOM_KEY = 'prelimsify_text_zoom';
 const TEXT_ZOOM_MIN = 80;
@@ -265,6 +268,7 @@ function setTestPaletteVisibility(show){
 }
 
 async function showTest(){
+  historySavedForSubmission = false;
   testStarted = true;
   setTestPaletteVisibility(true);
   testPaused = false;
@@ -368,6 +372,7 @@ function togglePauseTest(){
 }
 
 function resetTest(){
+  historySavedForSubmission = false;
   if (!testStarted) return;
   if (!confirm('Reset this test? All answers and your current score will be cleared.')) return;
 
@@ -394,6 +399,84 @@ const savePaperBtn = document.getElementById('savePaperBtn');
 if (savePaperBtn) savePaperBtn.addEventListener('click', saveCurrentQuestionSet);
 
 
+
+
+function getLocalScoreHistory(){
+  try { return JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function setLocalScoreHistory(rows){
+  try { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(rows.slice(0,100))); } catch(e) {}
+}
+function renderScoreHistory(rows, note=''){
+  const list=document.getElementById('scoreHistoryList');
+  const count=document.getElementById('scoreHistoryCount');
+  const status=document.getElementById('scoreHistoryStatus');
+  const boardCount=document.getElementById('scoreBoardCount');
+  if(!list||!count)return;
+  rows=Array.isArray(rows)?rows:[];
+  count.textContent=`${rows.length} ${rows.length===1?'test':'tests'}`;
+  if(status) status.textContent=note;
+  if(boardCount) boardCount.textContent=`${rows.length} ${rows.length===1?'test':'tests'}`;
+  if(!rows.length){
+    list.innerHTML='<div class="history-empty">No completed tests yet.</div>';
+    return;
+  }
+  list.innerHTML=rows.map(r=>{
+    const d=r.completed_at?new Date(r.completed_at).toLocaleString([], {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+    const pass=r.passed?'PASS':'FAIL';
+    return `<div class="history-row">
+      <div><div class="history-title">${escapeHistory(r.title||'Test')}</div><div class="history-date">${escapeHistory(d)}</div></div>
+      <div class="history-score">${Number(r.marks||0).toFixed(2)}<span> / ${Number(r.max_marks||0).toFixed(2)}</span></div>
+      <div class="history-percent">${Number(r.percentage||0).toFixed(1)}%</div>
+      <div class="history-breakdown">✓ ${Number(r.correct||0)} &nbsp; ✕ ${Number(r.wrong||0)} &nbsp; — ${Number(r.unanswered||0)}</div>
+      <div class="history-result ${r.passed?'history-pass':'history-fail'}">${pass}</div>
+    </div>`;
+  }).join('');
+}
+function escapeHistory(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function loadScoreHistory(){
+  // Always render local history first, so the section never disappears if Supabase/auth is unavailable.
+  const local=getLocalScoreHistory();
+  renderScoreHistory(local, supabaseUser ? '' : 'Local history');
+  if(!supabaseClient||!supabaseUser)return;
+  try{
+    const {data,error}=await supabaseClient.from(TEST_HISTORY_TABLE)
+      .select('id,title,marks,max_marks,percentage,passed,correct,wrong,unanswered,completed_at')
+      .eq('user_id',supabaseUser.id).order('completed_at',{ascending:false}).limit(100);
+    if(error)throw error;
+    const rows=data||[];
+    renderScoreHistory(rows,'Synced with Supabase');
+  }catch(e){
+    console.warn('Score history could not be loaded from Supabase:',e);
+    renderScoreHistory(local, local.length?'Local history':'');
+  }
+}
+async function saveScoreHistory(){
+  if(historySavedForSubmission)return;
+  historySavedForSubmission=true;
+  const maxMarks=total*MARK_CORRECT;
+  const percentage=maxMarks?(marks/maxMarks)*100:0;
+  const passMark=maxMarks*(PASS_PERCENT/100);
+  const row={
+    title:(document.getElementById('titleText')?.textContent||'Prelimsify Test').trim()||'Prelimsify Test',
+    marks:Number(marks.toFixed(2)),max_marks:Number(maxMarks.toFixed(2)),percentage:Number(percentage.toFixed(2)),
+    passed:marks>=passMark,correct:correctCount,wrong:wrongCount,unanswered:Math.max(0,total-answered),completed_at:new Date().toISOString()
+  };
+  // Local fallback guarantees the history feature works even before authentication is configured.
+  const local=getLocalScoreHistory();
+  local.unshift({...row,local_id:`${Date.now()}-${Math.random()}`});
+  setLocalScoreHistory(local);
+  renderScoreHistory(local,'Saved on this device');
+  if(!supabaseClient||!supabaseUser)return;
+  try{
+    const {error}=await supabaseClient.from(TEST_HISTORY_TABLE).insert({...row,user_id:supabaseUser.id});
+    if(error)throw error;
+    await loadScoreHistory();
+  }catch(e){
+    console.warn('Score history was saved locally but not to Supabase:',e);
+  }
+}
 
 function projectPreview(paper){
   const first = paper && paper.questions && paper.questions[0];
@@ -1221,6 +1304,7 @@ function finalizeResult(forcedNote){
   }
 
   document.getElementById('resultOverlay').classList.add('open');
+  saveScoreHistory();
 }
 
 function closeResult(){
@@ -1229,6 +1313,27 @@ function closeResult(){
 
 // UI controls
 document.getElementById('startTestBtn').addEventListener('click', showTest);
+
+// Score Board card -> opens Score History overlay
+const scoreBoardBtn = document.getElementById('scoreBoardBtn');
+const scoreHistoryOverlay = document.getElementById('scoreHistoryOverlay');
+const scoreHistoryCloseBtn = document.getElementById('scoreHistoryCloseBtn');
+function openScoreHistory(){
+  if(!scoreHistoryOverlay) return;
+  loadScoreHistory();
+  scoreHistoryOverlay.classList.add('open');
+  scoreHistoryOverlay.setAttribute('aria-hidden','false');
+}
+function closeScoreHistory(){
+  if(!scoreHistoryOverlay) return;
+  scoreHistoryOverlay.classList.remove('open');
+  scoreHistoryOverlay.setAttribute('aria-hidden','true');
+}
+if (scoreBoardBtn) scoreBoardBtn.addEventListener('click', openScoreHistory);
+if (scoreHistoryCloseBtn) scoreHistoryCloseBtn.addEventListener('click', closeScoreHistory);
+if (scoreHistoryOverlay) scoreHistoryOverlay.addEventListener('click', function(e){
+  if (e.target === scoreHistoryOverlay) closeScoreHistory();
+});
 const zoomInBtn = document.getElementById('zoomInBtn');
 const zoomOutBtn = document.getElementById('zoomOutBtn');
 
@@ -1269,9 +1374,10 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 // init
 (async function init(){
   const connected = await initSupabase();
-  if (!connected) return;
-
-  await moveBuiltInPaperToSavedProjects();
+  if (connected) {
+    await moveBuiltInPaperToSavedProjects();
+  }
+  await loadScoreHistory();
   if (!restoreTestSession()) {
     currentData = [];
     testStarted = false;
