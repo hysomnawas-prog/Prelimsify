@@ -10,6 +10,7 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_
 
 const SAVED_PROJECTS_TABLE = "quiz_projects";
 const TEST_HISTORY_TABLE = "test_history";
+const LOCAL_HISTORY_KEY = "prelimsify_score_history";
 let supabaseClient = null;
 let supabaseUser = null;
 
@@ -150,7 +151,7 @@ let remaining = 120 * 60;
 let savedProjects = [];
 let testStarted = false;
 let testPaused = false;
-let historySaved = false;
+let historySavedForSubmission = false;
 
 const TEXT_ZOOM_KEY = 'prelimsify_text_zoom';
 const TEXT_ZOOM_MIN = 80;
@@ -267,7 +268,7 @@ function setTestPaletteVisibility(show){
 }
 
 async function showTest(){
-  historySaved = false;
+  historySavedForSubmission = false;
   testStarted = true;
   setTestPaletteVisibility(true);
   testPaused = false;
@@ -371,7 +372,7 @@ function togglePauseTest(){
 }
 
 function resetTest(){
-  historySaved = false;
+  historySavedForSubmission = false;
   if (!testStarted) return;
   if (!confirm('Reset this test? All answers and your current score will be cleared.')) return;
 
@@ -400,110 +401,79 @@ if (savePaperBtn) savePaperBtn.addEventListener('click', saveCurrentQuestionSet)
 
 
 
-async function loadScoreHistory(){
-  const list = document.getElementById('scoreHistoryList');
-  const count = document.getElementById('scoreHistoryCount');
-  if (!list || !count) return;
-
-  if (!supabaseClient || !supabaseUser){
-    list.innerHTML = '<div class="history-empty">Sign in to see your score history.</div>';
-    count.textContent = '0 tests';
+function getLocalScoreHistory(){
+  try { return JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function setLocalScoreHistory(rows){
+  try { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(rows.slice(0,100))); } catch(e) {}
+}
+function renderScoreHistory(rows, note=''){
+  const list=document.getElementById('scoreHistoryList');
+  const count=document.getElementById('scoreHistoryCount');
+  const status=document.getElementById('scoreHistoryStatus');
+  if(!list||!count)return;
+  rows=Array.isArray(rows)?rows:[];
+  count.textContent=`${rows.length} ${rows.length===1?'test':'tests'}`;
+  if(status) status.textContent=note;
+  if(!rows.length){
+    list.innerHTML='<div class="history-empty">No completed tests yet.</div>';
     return;
   }
-
+  list.innerHTML=rows.map(r=>{
+    const d=r.completed_at?new Date(r.completed_at).toLocaleString([], {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+    const pass=r.passed?'PASS':'FAIL';
+    return `<div class="history-row">
+      <div><div class="history-title">${escapeHistory(r.title||'Test')}</div><div class="history-date">${escapeHistory(d)}</div></div>
+      <div class="history-score">${Number(r.marks||0).toFixed(2)}<span> / ${Number(r.max_marks||0).toFixed(2)}</span></div>
+      <div class="history-percent">${Number(r.percentage||0).toFixed(1)}%</div>
+      <div class="history-breakdown">✓ ${Number(r.correct||0)} &nbsp; ✕ ${Number(r.wrong||0)} &nbsp; — ${Number(r.unanswered||0)}</div>
+      <div class="history-result ${r.passed?'history-pass':'history-fail'}">${pass}</div>
+    </div>`;
+  }).join('');
+}
+function escapeHistory(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function loadScoreHistory(){
+  // Always render local history first, so the section never disappears if Supabase/auth is unavailable.
+  const local=getLocalScoreHistory();
+  renderScoreHistory(local, supabaseUser ? '' : 'Local history');
+  if(!supabaseClient||!supabaseUser)return;
   try{
-    const { data, error } = await supabaseClient
-      .from(TEST_HISTORY_TABLE)
+    const {data,error}=await supabaseClient.from(TEST_HISTORY_TABLE)
       .select('id,title,marks,max_marks,percentage,passed,correct,wrong,unanswered,completed_at')
-      .eq('user_id', supabaseUser.id)
-      .order('completed_at', { ascending:false })
-      .limit(100);
-
-    if (error) throw error;
-
-    const rows = data || [];
-    count.textContent = `${rows.length} ${rows.length === 1 ? 'test' : 'tests'}`;
-
-    if (!rows.length){
-      list.innerHTML = '<div class="history-empty">No completed tests yet.</div>';
-      return;
-    }
-
-    list.innerHTML = rows.map(row => {
-      const date = row.completed_at
-        ? new Date(row.completed_at).toLocaleString([], {
-            day:'2-digit', month:'short', year:'numeric',
-            hour:'2-digit', minute:'2-digit'
-          })
-        : '—';
-      const resultClass = row.passed ? 'history-pass' : 'history-fail';
-      const resultText = row.passed ? 'PASS' : 'FAIL';
-      const title = escapeHtml(row.title || 'Test');
-      const marksText = Number(row.marks || 0).toFixed(2);
-      const maxText = Number(row.max_marks || 0).toFixed(2);
-      const percentage = Number(row.percentage || 0).toFixed(1);
-
-      return `
-        <div class="history-row">
-          <div class="history-main">
-            <div class="history-test-title">${title}</div>
-            <div class="history-date">${escapeHtml(date)}</div>
-          </div>
-          <div class="history-score">${marksText}<span>/${maxText}</span></div>
-          <div class="history-percent">${percentage}%</div>
-          <div class="history-breakdown">
-            <span>✓ ${Number(row.correct || 0)}</span>
-            <span>✕ ${Number(row.wrong || 0)}</span>
-            <span>— ${Number(row.unanswered || 0)}</span>
-          </div>
-          <div class="history-result ${resultClass}">${resultText}</div>
-        </div>
-      `;
-    }).join('');
+      .eq('user_id',supabaseUser.id).order('completed_at',{ascending:false}).limit(100);
+    if(error)throw error;
+    const rows=data||[];
+    renderScoreHistory(rows,'Synced with Supabase');
   }catch(e){
-    console.error('Could not load score history:', e);
-    list.innerHTML = '<div class="history-empty">Could not load score history.</div>';
-    count.textContent = '—';
+    console.warn('Score history could not be loaded from Supabase:',e);
+    renderScoreHistory(local, local.length?'Local history':'');
   }
 }
-
 async function saveScoreHistory(){
-  if (historySaved || !supabaseClient || !supabaseUser) return;
-  historySaved = true;
-
-  const maxMarks = total * MARK_CORRECT;
-  const percentage = maxMarks > 0 ? (marks / maxMarks) * 100 : 0;
-  const passMark = maxMarks * (PASS_PERCENT / 100);
-  const pass = marks >= passMark;
-  const title = (document.getElementById('titleText')?.textContent || 'Prelimsify Test').trim();
-
+  if(historySavedForSubmission)return;
+  historySavedForSubmission=true;
+  const maxMarks=total*MARK_CORRECT;
+  const percentage=maxMarks?(marks/maxMarks)*100:0;
+  const passMark=maxMarks*(PASS_PERCENT/100);
+  const row={
+    title:(document.getElementById('titleText')?.textContent||'Prelimsify Test').trim()||'Prelimsify Test',
+    marks:Number(marks.toFixed(2)),max_marks:Number(maxMarks.toFixed(2)),percentage:Number(percentage.toFixed(2)),
+    passed:marks>=passMark,correct:correctCount,wrong:wrongCount,unanswered:Math.max(0,total-answered),completed_at:new Date().toISOString()
+  };
+  // Local fallback guarantees the history feature works even before authentication is configured.
+  const local=getLocalScoreHistory();
+  local.unshift({...row,local_id:`${Date.now()}-${Math.random()}`});
+  setLocalScoreHistory(local);
+  renderScoreHistory(local,'Saved on this device');
+  if(!supabaseClient||!supabaseUser)return;
   try{
-    const { error } = await supabaseClient
-      .from(TEST_HISTORY_TABLE)
-      .insert({
-        user_id: supabaseUser.id,
-        title: title || 'Prelimsify Test',
-        marks: Number(marks.toFixed(2)),
-        max_marks: Number(maxMarks.toFixed(2)),
-        percentage: Number(percentage.toFixed(2)),
-        passed: pass,
-        correct: correctCount,
-        wrong: wrongCount,
-        unanswered: Math.max(0, total - answered)
-      });
-
-    if (error) throw error;
+    const {error}=await supabaseClient.from(TEST_HISTORY_TABLE).insert({...row,user_id:supabaseUser.id});
+    if(error)throw error;
     await loadScoreHistory();
   }catch(e){
-    historySaved = false;
-    console.error('Could not save score history:', e);
+    console.warn('Score history was saved locally but not to Supabase:',e);
   }
-}
-
-function escapeHtml(value){
-  return String(value ?? '').replace(/[&<>"']/g, ch => ({
-    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
-  }[ch]));
 }
 
 function projectPreview(paper){
@@ -1381,9 +1351,9 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
 // init
 (async function init(){
   const connected = await initSupabase();
-  if (!connected) return;
-
-  await moveBuiltInPaperToSavedProjects();
+  if (connected) {
+    await moveBuiltInPaperToSavedProjects();
+  }
   await loadScoreHistory();
   if (!restoreTestSession()) {
     currentData = [];
