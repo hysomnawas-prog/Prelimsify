@@ -505,11 +505,19 @@ async function loadSavedProjects(){
   if (!supabaseClient || !supabaseUser) return;
 
   try{
-    const { data, error } = await supabaseClient
+    // Admins can see all saved question sets. This also restores sets that
+    // were saved under an older/orphaned account while keeping normal users
+    // restricted to their own projects.
+    let query = supabaseClient
       .from(SAVED_PROJECTS_TABLE)
       .select('id,user_id,project_number,paper,saved_at')
-      .eq('user_id', supabaseUser.id)
       .order('project_number', { ascending:true });
+
+    if (currentProfile?.role !== 'admin') {
+      query = query.eq('user_id', supabaseUser.id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
