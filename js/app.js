@@ -915,59 +915,27 @@ function requireSignedIn(){
 async function loadCurrentProfile(){
   if(!supabaseClient||!supabaseUser)return false;
 
-  // Normally the database trigger creates this row automatically. If an
-  // older account was created before that trigger existed, repair the
-  // missing profile here so login is not blocked.
-  let {data,error}=await supabaseClient
-    .from('profiles')
-    .select('id,username,display_name,role,can_use_app')
-    .eq('id',supabaseUser.id)
-    .maybeSingle();
-
+  // Read/repair the profile through a SECURITY DEFINER RPC. This avoids
+  // profile-row RLS/recursive-policy problems immediately after login.
+  const {data,error}=await supabaseClient.rpc('ensure_my_profile');
   if(error){
-    console.warn('Profile load failed:',error);
+    console.error('Profile RPC failed:',error);
+    setAuthStatus('Login worked, but the account profile could not be loaded: ' + (error.message || error), false);
     return false;
   }
 
-  if(!data){
-    const meta=supabaseUser.user_metadata||{};
-    const username=cleanUsername(meta.username||String(supabaseUser.email||'').split('@')[0]);
-    if(username.length<3){
-      console.warn('Could not determine a valid username for this account.');
-      return false;
-    }
-
-    const {error:insertError}=await supabaseClient.from('profiles').insert({
-      id:supabaseUser.id,
-      username,
-      display_name:username,
-      email:supabaseUser.email||null,
-      role:'student',
-      can_use_app:true
-    });
-
-    if(insertError){
-      console.warn('Profile repair failed:',insertError);
-      return false;
-    }
-
-    ({data,error}=await supabaseClient
-      .from('profiles')
-      .select('id,username,display_name,role,can_use_app')
-      .eq('id',supabaseUser.id)
-      .maybeSingle());
-
-    if(error||!data){
-      console.warn('Profile could not be reloaded after repair:',error);
-      return false;
-    }
+  const profile=Array.isArray(data) ? data[0] : data;
+  if(!profile){
+    console.error('ensure_my_profile returned no profile');
+    return false;
   }
 
-  currentProfile=data;
-  if(data.can_use_app === false && data.role !== 'admin'){
+  currentProfile=profile;
+  if(profile.can_use_app === false && profile.role !== 'admin'){
     await supabaseClient.auth.signOut();
     supabaseUser=null; currentProfile=null;
     setAuthStatus('Your account is currently disabled by an administrator.', false);
+    updateAuthUI();
     return false;
   }
   updateAuthUI();
@@ -984,7 +952,7 @@ async function signInWithUsername(username,password){
     throw error;
   }
   supabaseUser=data.user;
-  if(!(await loadCurrentProfile())) throw new Error('Login succeeded, but the user profile could not be loaded. Run the latest supabase_schema.sql and try again.');
+  if(!(await loadCurrentProfile())) throw new Error('Login succeeded, but the account profile could not be loaded. Run the latest Supabase SQL setup and try again.');
   closeAuthModal();
   updateAuthUI();
   await loadSavedProjects();
@@ -1007,7 +975,7 @@ async function createUsernameAccount(username,password){
     throw new Error('Account created, but email confirmation is enabled. Turn OFF Authentication → Providers → Email → Confirm email, then log in.');
   }
   supabaseUser=data.user;
-  if(!(await loadCurrentProfile())) throw new Error('Account created, but its profile was not created. Run the latest supabase_schema.sql, then try again.');
+  if(!(await loadCurrentProfile())) throw new Error('Account created, but its profile could not be loaded. Run the latest Supabase SQL setup and try again.');
   closeAuthModal();
   updateAuthUI();
   await loadSavedProjects();

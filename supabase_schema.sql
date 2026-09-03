@@ -2,6 +2,11 @@
 -- Run in Supabase SQL Editor. Safe to run repeatedly.
 create extension if not exists pgcrypto;
 
+-- Make the profile schema compatible with both fresh and older Prelimsify projects.
+alter table public.profiles add column if not exists display_name text;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists email text;
+
 -- ------------------------------------------------------------
 -- 1. Student/admin profile
 -- ------------------------------------------------------------
@@ -124,6 +129,77 @@ join public.profiles p on p.id = h.user_id
 where p.can_use_app = true;
 
 grant select on public.scoreboard_entries to authenticated;
+
+-- ------------------------------------------------------------
+-- 5b. Reliable profile loader/repair for browser login
+-- ------------------------------------------------------------
+create or replace function public.ensure_my_profile()
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  role text,
+  can_use_app boolean
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  u record;
+  base_username text;
+  final_username text;
+  n integer := 0;
+begin
+  if auth.uid() is null then
+    return;
+  end if;
+
+  select * into u from auth.users where auth.users.id = auth.uid();
+
+  base_username := lower(coalesce(
+    u.raw_user_meta_data ->> 'username',
+    split_part(coalesce(u.email,''),'@',1),
+    'user_' || substr(u.id::text,1,8)
+  ));
+  base_username := regexp_replace(base_username, '[^a-z0-9_.-]', '', 'g');
+  if length(base_username) < 3 then
+    base_username := 'user_' || substr(u.id::text,1,8);
+  end if;
+  final_username := left(base_username,32);
+
+  -- Create the row if this is an older Auth account with no profile.
+  begin
+    insert into public.profiles (id, username, display_name, avatar_url, email, role, can_use_app)
+    values (
+      u.id, final_username, final_username,
+      u.raw_user_meta_data ->> 'avatar_url', u.email, 'student', true
+    )
+    on conflict (id) do nothing;
+  exception when unique_violation then
+    -- Username already belongs to another account: generate a unique suffix.
+    loop
+      n := n + 1;
+      final_username := left(base_username, greatest(3, 32 - length(n::text) - 1)) || '_' || n::text;
+      begin
+        insert into public.profiles (id, username, display_name, avatar_url, email, role, can_use_app)
+        values (u.id, final_username, final_username, u.raw_user_meta_data ->> 'avatar_url', u.email, 'student', true)
+        on conflict (id) do nothing;
+        exit;
+      exception when unique_violation then
+        if n > 1000 then raise; end if;
+      end;
+    end loop;
+  end;
+
+  return query
+  select p.id, p.username, p.display_name, p.role, p.can_use_app
+  from public.profiles p
+  where p.id = auth.uid();
+end;
+$$;
+
+grant execute on function public.ensure_my_profile() to authenticated;
 
 -- ------------------------------------------------------------
 -- 6. Row Level Security
