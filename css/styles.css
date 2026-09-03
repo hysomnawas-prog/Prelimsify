@@ -189,8 +189,8 @@
 
   /* ---- Loader panel ---- */
   .loader-panel{
-    max-width:720px;
-    margin:0 auto;
+    max-width:none;
+    margin:0;
     background:var(--paper);
     border-left:1px solid var(--rule-light);
     border-right:1px solid var(--rule-light);
