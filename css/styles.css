@@ -116,7 +116,7 @@
     box-shadow:0 10px 26px rgba(0,0,0,.09);
     transform:translateY(-1px);
   }
-  .score-board-card .sb-icon{ font-size:22px; line-height:1; }
+  .score-board-card .sb-icon{ width:26px; height:26px; object-fit:contain; flex-shrink:0; }
   .score-board-card .sb-text{
     display:flex;
     flex-direction:column;
@@ -622,6 +622,13 @@
     color:var(--ink-soft);
   }
   .result-stats b{ color:var(--ink); display:block; font-size:15px; }
+
+  .result-actions{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    gap:8px;
+  }
 
   .footer-note{
     text-align:center;

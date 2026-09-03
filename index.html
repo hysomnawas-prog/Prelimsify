@@ -14,7 +14,7 @@
     <button class="btn" id="startTestBtn" type="button">Start Test</button>
 
     <button class="score-board-card" id="scoreBoardBtn" type="button">
-      <span class="sb-icon">📊</span>
+      <img class="sb-icon" src="assets/images/scoreboard-icon.png" alt="">
       <span class="sb-text">
         <span class="sb-title">Score Board</span>
         <span class="sb-sub">View the score history of tests attended</span>
@@ -166,8 +166,12 @@ D. 1, 2 and 3
       <div><b id="resultUnanswered">0</b>Unattempted</div>
     </div>
     <div class="msg" id="resultMsg"></div>
-    <button class="btn" onclick="closeResult()">Review Answers</button>
-    <button class="btn secondary" onclick="location.reload()" style="margin-left:8px;">Retake</button>
+    <div class="result-actions">
+      <button class="btn" onclick="closeResult()">Review Answers</button>
+      <button class="btn secondary" onclick="location.reload()">Retake</button>
+      <button class="btn secondary" id="resultBackBtn" type="button">Back</button>
+      <button class="btn secondary" id="resultHomeBtn" type="button">Home</button>
+    </div>
   </div>
 </div>
 </div>
