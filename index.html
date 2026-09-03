@@ -7,7 +7,107 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>prelimsify</title>
-<link rel="stylesheet" href="css/styles.css?v=20260903">
+<link rel="stylesheet" href="css/styles.css?v=20260903&account=topright">
+<style>
+/* ===============================
+   SIGNED-IN ACCOUNT PANEL
+   Compact floating control in the
+   upper-right corner of the home page.
+   =============================== */
+#loggedInHome .account-panel {
+  position: fixed !important;
+  top: 18px !important;
+  right: 18px !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 9999 !important;
+  width: 300px !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 36px) !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  box-sizing: border-box !important;
+  border: 1px solid rgba(0,0,0,.14) !important;
+  border-radius: 14px !important;
+  background: rgba(255,255,255,.97) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.12) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+#loggedInHome .account-line {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  margin: 0 0 11px !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid rgba(0,0,0,.09) !important;
+}
+
+#loggedInHome .account-label {
+  font-size: 12px !important;
+  color: #666 !important;
+  letter-spacing: .02em !important;
+}
+
+#loggedInHome #accountName {
+  display: inline-block !important;
+  max-width: 175px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: #111 !important;
+}
+
+#loggedInHome .account-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 7px !important;
+  flex-wrap: wrap !important;
+}
+
+#loggedInHome .account-actions .btn,
+#loggedInHome .account-actions .admin-branch-link {
+  min-height: 34px !important;
+  padding: 7px 12px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+}
+
+#loggedInHome .account-actions .admin-branch-link {
+  border: 1px solid #111 !important;
+  background: #111 !important;
+  color: #fff !important;
+}
+
+/* Keep Start Test + Score Board centered, underneath the account panel. */
+#loggedInHome {
+  position: relative !important;
+}
+
+#loggedInHome #startTestBtn {
+  margin-top: 26px !important;
+}
+
+@media (max-width: 600px) {
+  #loggedInHome .account-panel {
+    top: 10px !important;
+    right: 10px !important;
+    width: min(300px, calc(100vw - 20px)) !important;
+    max-width: calc(100vw - 20px) !important;
+  }
+
+  #loggedInHome #startTestBtn {
+    margin-top: 32px !important;
+  }
+}
+</style>
 </head>
 <body>
 
@@ -213,6 +313,6 @@ D. 1, 2 and 3
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/app.js?v=20260903"></script>
+<script src="js/app.js?v=20260903&account=topright"></script>
 </body>
 </html>
