@@ -42,16 +42,14 @@
 
 <div class="app-shell" id="appShell">
 <div class="masthead">
+  <button class="masthead-home-btn" id="mastheadHomeBtn" type="button" title="Home" aria-label="Home">⌂</button>
   <div class="eyebrow" id="eyebrowText"></div>
   <h1 id="titleText">prelimsify</h1>
   <div class="sub" id="subText">100 Questions &middot; 200 Marks &middot; +2 for correct, −0.66 for incorrect &middot; Time: 2 Hours</div>
 </div>
 
 <div class="loader-panel">
-  <div class="loader-panel-head">
-    <button class="loader-toggle" onclick="toggleLoader()">Load a question paper ▾</button>
-    <button class="btn secondary loader-home-btn" id="loaderHomeBtn" type="button">Home</button>
-  </div>
+  <button class="loader-toggle" onclick="toggleLoader()">Load a question paper ▾</button>
   <div class="loader-body open" id="loaderBody">
     <label for="jsonInput">Paste question JSON</label>
     <textarea id="jsonInput" placeholder='[{"s":"Section title"},{"q":"Question text","o":{"A":"opt A","B":"opt B","C":"opt C","D":"opt D"},"a":"B"}]'></textarea>

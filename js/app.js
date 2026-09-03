@@ -996,6 +996,7 @@ function buildQuiz(restoreState = false){
     document.getElementById('progressFill').style.width = '0%';
     // Keep the question area empty on the Load a question paper page.
     root.innerHTML = '';
+    if (mastheadHomeBtn) mastheadHomeBtn.classList.add('visible');
     return;
   }
 
@@ -1003,6 +1004,7 @@ function buildQuiz(restoreState = false){
   setTestPaletteVisibility(true);
   const scorebar = document.querySelector('.scorebar');
   if (scorebar) scorebar.style.display = 'flex';
+  if (mastheadHomeBtn) mastheadHomeBtn.classList.remove('visible');
   document.getElementById('submitBar').style.display = 'flex';
   // A real question paper is loaded, so Submit Paper must be active.
   document.getElementById('submitBtn').disabled = false;
@@ -1365,8 +1367,8 @@ function bindZoomControls(){
 bindZoomControls();
 
 document.getElementById('homeBtn').addEventListener('click', showHome);
-const loaderHomeBtn = document.getElementById('loaderHomeBtn');
-if (loaderHomeBtn) loaderHomeBtn.addEventListener('click', showHome);
+const mastheadHomeBtn = document.getElementById('mastheadHomeBtn');
+if (mastheadHomeBtn) mastheadHomeBtn.addEventListener('click', showHome);
 document.getElementById('pauseBtn').addEventListener('click', togglePauseTest);
 document.getElementById('resumeTestBtn').addEventListener('click', resumeTest);
 document.getElementById('exitTestBtn').addEventListener('click', exitTestToUploadPage);
