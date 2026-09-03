@@ -14,7 +14,9 @@ The schema adds:
 
 The frontend maps a username to an internal Supabase Auth email such as `alice@users.prelimsify.local`. Users only type their username and password; no real email address is requested.
 
-In **Supabase → Authentication → Providers → Email**, turn **Confirm email** OFF for this username-only flow. Otherwise Supabase will require an email confirmation even though the generated address is not a mailbox the user controls.
+In **Supabase → Authentication → Providers → Email**, turn **Confirm email** OFF for this username-only flow. This is required because the app uses an internal generated address (`username@users.prelimsify.local`) and the user does not have a mailbox for it. **This setting cannot be fixed by a SQL policy alone**; it is an Auth provider setting.
+
+If an account was created before the latest SQL trigger was installed, re-run the complete `supabase_schema.sql`. It now includes a safe profile backfill for Auth users that do not yet have a `profiles` row.
 
 ## 3. Create the first administrator
 

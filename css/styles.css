@@ -96,6 +96,10 @@
     padding:11px 30px;
   }
 
+.auth-gate{display:flex;flex-direction:column;gap:9px;width:min(260px,82vw);margin:0 auto}
+.auth-gate .btn{width:100%;box-sizing:border-box}
+.logged-in-home{width:100%;}
+
   /* ---- Score board card (home page) ---- */
   .score-board-card{
     display:flex;

@@ -15,27 +15,32 @@
   <div class="home-content">
     <h1>prelimsify</h1>
     <p>The Prelims sahchari</p>
-    <div class="account-panel" id="accountPanel">
-      <div class="account-line"><span class="account-label">Account</span><strong id="accountName">Not signed in</strong></div>
-      <div class="account-actions">
-        <button class="btn secondary" id="loginBtn" type="button">Login</button>
-        <button class="btn secondary" id="signupBtn" type="button">Create account</button>
-        <button class="btn secondary" id="renameUserBtn" type="button">Rename</button>
-        <button class="btn secondary" id="logoutBtn" type="button">Logout</button>
-        <a class="btn secondary admin-branch-link" id="adminBranchLink" href="admin.html" style="display:none;">Admin</a>
-      </div>
+    <div class="auth-gate" id="authGate">
+      <button class="btn" id="loginBtn" type="button">Login</button>
+      <button class="btn secondary" id="signupBtn" type="button">Create account</button>
     </div>
 
-    <button class="btn" id="startTestBtn" type="button">Start Test</button>
+    <div class="logged-in-home" id="loggedInHome" style="display:none;">
+      <div class="account-panel" id="accountPanel">
+        <div class="account-line"><span class="account-label">Signed in as</span><strong id="accountName"></strong></div>
+        <div class="account-actions">
+          <button class="btn secondary" id="renameUserBtn" type="button">Rename</button>
+          <button class="btn secondary" id="logoutBtn" type="button">Logout</button>
+          <a class="btn secondary admin-branch-link" id="adminBranchLink" href="admin.html" style="display:none;">Admin</a>
+        </div>
+      </div>
 
-    <button class="score-board-card" id="scoreBoardBtn" type="button">
+      <button class="btn" id="startTestBtn" type="button">Start Test</button>
+
+      <button class="score-board-card" id="scoreBoardBtn" type="button">
       <img class="sb-icon" src="assets/images/scoreboard-icon.png" alt="">
       <span class="sb-text">
         <span class="sb-title">Score Board</span>
         <span class="sb-sub">View the score history of tests attended</span>
       </span>
-      <span class="sb-count" id="scoreBoardCount">0 tests</span>
-    </button>
+        <span class="sb-count" id="scoreBoardCount">0 tests</span>
+      </button>
+    </div>
   </div>
 </div>
 <div class="auth-overlay" id="authOverlay" aria-hidden="true">

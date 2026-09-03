@@ -42,6 +42,19 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
+-- Backfill profiles for Auth users that were created before this trigger existed.
+-- This is safe to re-run; existing profile rows are left untouched.
+insert into public.profiles (id, username, display_name, avatar_url, email)
+select
+  u.id,
+  lower(u.raw_user_meta_data ->> 'username'),
+  coalesce(u.raw_user_meta_data ->> 'display_name', u.raw_user_meta_data ->> 'username', u.raw_user_meta_data ->> 'full_name', u.raw_user_meta_data ->> 'name'),
+  u.raw_user_meta_data ->> 'avatar_url',
+  u.email
+from auth.users u
+where not exists (select 1 from public.profiles p where p.id=u.id)
+  and (u.raw_user_meta_data ->> 'username') is not null;
+
 -- ------------------------------------------------------------
 -- 2. Saved question-set projects
 -- ------------------------------------------------------------

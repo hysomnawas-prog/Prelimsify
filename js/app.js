@@ -303,6 +303,7 @@ async function showTest(){
 }
 
 function showHome(){
+  if(!requireSignedIn()) return;
   setTestPaletteVisibility(false);
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
@@ -929,10 +930,18 @@ async function signInWithUsername(username,password){
   username=cleanUsername(username);
   if(username.length<3) throw new Error('Username must be at least 3 characters.');
   const {data,error}=await supabaseClient.auth.signInWithPassword({email:usernameEmail(username),password});
-  if(error)throw error;
+  if(error){
+    const msg=String(error.message||'');
+    if(/email not confirmed/i.test(msg)) throw new Error('Email confirmation is enabled in Supabase. Turn OFF Authentication → Providers → Email → Confirm email, then try again.');
+    if(/invalid login credentials/i.test(msg)) throw new Error('Invalid username or password. Check the username spelling and password.');
+    throw error;
+  }
   supabaseUser=data.user;
-  if(!(await loadCurrentProfile())) throw new Error('Your account is not permitted to use Prelimsify.');
+  if(!(await loadCurrentProfile())) throw new Error('Login succeeded, but the user profile could not be loaded. Run the latest supabase_schema.sql and try again.');
   closeAuthModal();
+  updateAuthUI();
+  await loadSavedProjects();
+  await loadScoreHistory();
   return true;
 }
 async function createUsernameAccount(username,password){
@@ -941,11 +950,21 @@ async function createUsernameAccount(username,password){
   if(!/^[a-z0-9_.-]+$/.test(username)) throw new Error('Username may contain letters, numbers, dot, underscore and hyphen only.');
   if(!password || password.length<6) throw new Error('Password must be at least 6 characters.');
   const {data,error}=await supabaseClient.auth.signUp({email:usernameEmail(username),password,options:{data:{username,display_name:username}}});
-  if(error)throw error;
-  if(!data.session){ throw new Error('Account created. Ask the administrator to disable email confirmation in Supabase, then log in with your username and password.'); }
+  if(error){
+    const msg=String(error.message||'');
+    if(/already registered|already exists/i.test(msg)) throw new Error('That username is already registered. Please use Login.');
+    throw error;
+  }
+  if(!data.user) throw new Error('Supabase did not create the account. Check the Supabase Authentication settings.');
+  if(!data.session){
+    throw new Error('Account created, but email confirmation is enabled. Turn OFF Authentication → Providers → Email → Confirm email, then log in.');
+  }
   supabaseUser=data.user;
-  await loadCurrentProfile();
+  if(!(await loadCurrentProfile())) throw new Error('Account created, but its profile was not created. Run the latest supabase_schema.sql, then try again.');
   closeAuthModal();
+  updateAuthUI();
+  await loadSavedProjects();
+  await loadScoreHistory();
   return true;
 }
 async function renameCurrentUsername(newUsername){
@@ -965,7 +984,9 @@ async function logoutCurrentUser(){
   if(supabaseClient) await supabaseClient.auth.signOut();
   supabaseUser=null; currentProfile=null;
   updateAuthUI();
-  showHome();
+  setTestPaletteVisibility(false);
+  document.getElementById('appShell').classList.remove('active');
+  document.getElementById('homeScreen').style.display='flex';
 }
 function setAuthStatus(msg,ok){
   const el=document.getElementById('authStatus');
@@ -975,17 +996,23 @@ function updateAuthUI(){
   const panel=document.getElementById('accountPanel');
   const label=document.getElementById('accountName');
   const adminLink=document.getElementById('adminBranchLink');
+  const gate=document.getElementById('authGate');
+  const loggedHome=document.getElementById('loggedInHome');
+  const signedIn=!!(supabaseUser&&currentProfile);
+  if(gate) gate.style.display=signedIn?'none':'flex';
+  if(loggedHome) loggedHome.style.display=signedIn?'block':'none';
   if(!panel)return;
-  if(supabaseUser&&currentProfile){
+  if(signedIn){
     panel.classList.add('signed-in');
-    label.textContent=currentProfile.username||currentProfile.display_name||'User';
-    adminLink.style.display=currentProfile.role==='admin'?'inline-flex':'none';
+    if(label) label.textContent=currentProfile.username||currentProfile.display_name||'User';
+    if(adminLink) adminLink.style.display=currentProfile.role==='admin'?'inline-flex':'none';
   }else{
     panel.classList.remove('signed-in');
-    label.textContent='Not signed in';
-    adminLink.style.display='none';
+    if(label) label.textContent='';
+    if(adminLink) adminLink.style.display='none';
   }
 }
+
 function openAuthModal(mode='login'){
   const modal=document.getElementById('authOverlay'); if(!modal)return;
   modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
@@ -1568,6 +1595,7 @@ setupAuthUI();
     setTestPaletteVisibility(false);
     document.getElementById('homeScreen').style.display = 'flex';
     document.getElementById('appShell').classList.remove('active');
+    updateAuthUI();
     buildQuiz(false);
     const loaderBody = document.getElementById('loaderBody');
     if (loaderBody) loaderBody.classList.add('open');
