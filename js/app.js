@@ -11,6 +11,7 @@ const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E2ghL9KbeoQ-GghejXbrQw_ie0wrjH_
 const SAVED_PROJECTS_TABLE = "quiz_projects";
 const TEST_HISTORY_TABLE = "test_history";
 const LOCAL_HISTORY_KEY = "prelimsify_score_history";
+const LOCAL_SAVED_PROJECTS_KEY = "prelimsify_saved_projects";
 let supabaseClient = null;
 let supabaseUser = null;
 
@@ -483,7 +484,22 @@ function projectPreview(paper){
   return first ? String(first.q || '').replace(/\s+/g, ' ').trim() : 'Question set';
 }
 
+function getLocalSavedProjects(){
+  try { return JSON.parse(localStorage.getItem(LOCAL_SAVED_PROJECTS_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function setLocalSavedProjects(rows){
+  try { localStorage.setItem(LOCAL_SAVED_PROJECTS_KEY, JSON.stringify(rows)); } catch(e) {}
+}
+
 async function loadSavedProjects(){
+  // Always render whatever is stored on this device first, so Saved Projects
+  // never appears empty just because Supabase/auth is slow, blocked, or unavailable
+  // (this is the main cause of "saved questions missing" on mobile browsers).
+  const local = getLocalSavedProjects();
+  savedProjects = local;
+  renderSavedProjects();
+
   if (!supabaseClient || !supabaseUser) return;
 
   try{
@@ -494,11 +510,18 @@ async function loadSavedProjects(){
       .order('project_number', { ascending:true });
 
     if (error) throw error;
-    savedProjects = data || [];
+
+    const synced = data || [];
+    // Keep any project saved on this device that never made it to Supabase
+    // (e.g. saved while offline or while the connection was blocked).
+    const localOnly = local.filter(r => !r.id);
+    const merged = [...synced, ...localOnly].sort((a,b) => a.project_number - b.project_number);
+
+    savedProjects = merged;
+    setLocalSavedProjects(merged);
     renderSavedProjects();
   }catch(e){
-    console.error('Could not load saved projects:', e);
-    setLoaderMsg('Could not load saved projects: ' + (e.message || e), false);
+    console.warn('Saved projects could not be synced from Supabase, showing local copy:', e);
   }
 }
 
@@ -537,10 +560,6 @@ function applyProjectPaper(projectPaper){
 }
 
 async function saveCurrentQuestionSet(){
-  if (!supabaseClient || !supabaseUser){
-    setLoaderMsg('Supabase is not connected. Try again after the connection is restored.', false);
-    return;
-  }
   if (!Array.isArray(currentData) || !currentData.some(item => item.q)){
     setLoaderMsg('There is no question set loaded to save.', false);
     return;
@@ -555,69 +574,76 @@ async function saveCurrentQuestionSet(){
     return;
   }
 
+  const projectPaper = makeProjectPaper();
+  projectPaper.title = cleanName;
+  const nextProject = savedProjects.length
+    ? Math.max(...savedProjects.map(row => Number(row.project_number) || 0)) + 1
+    : 1;
+
+  // Save on this device first — this guarantees the project shows up in Saved
+  // Projects immediately, even if Supabase is slow, blocked, or the session
+  // is not connected (a common cause of "saved questions missing" on mobile).
+  const localRow = {
+    id: null,
+    local_id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    project_number: nextProject,
+    paper: projectPaper,
+    saved_at: new Date().toISOString()
+  };
+  savedProjects.push(localRow);
+  savedProjects.sort((a,b) => a.project_number - b.project_number);
+  setLocalSavedProjects(savedProjects);
+  renderSavedProjects();
+  setLoaderMsg(`Project "${cleanName}" saved.`, true);
+
+  if (!supabaseClient || !supabaseUser) return;
+
   try{
-    const { data: latest, error: latestError } = await supabaseClient
-      .from(SAVED_PROJECTS_TABLE)
-      .select('project_number')
-      .eq('user_id', supabaseUser.id)
-      .order('project_number', { ascending:false })
-      .limit(1);
-
-    if (latestError) throw latestError;
-
-    const nextProject = latest && latest.length ? Number(latest[0].project_number) + 1 : 1;
-    const projectPaper = makeProjectPaper();
-    projectPaper.title = cleanName;
-
     const { data, error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
       .insert({
         user_id: supabaseUser.id,
         project_number: nextProject,
         paper: projectPaper,
-        saved_at: new Date().toISOString()
+        saved_at: localRow.saved_at
       })
       .select('id,user_id,project_number,paper,saved_at')
       .single();
 
     if (error) throw error;
 
-    savedProjects.push(data);
-    savedProjects.sort((a,b) => a.project_number - b.project_number);
+    // Upgrade the local-only row to a synced one now that it has a Supabase id.
+    const idx = savedProjects.findIndex(p => p.local_id === localRow.local_id);
+    if (idx !== -1) savedProjects[idx] = data;
+    setLocalSavedProjects(savedProjects);
     renderSavedProjects();
-    setLoaderMsg(`Project "${cleanName}" saved.`, true);
   }catch(e){
-    console.error('Could not save project:', e);
-    setLoaderMsg('Could not save project: ' + (e.message || e), false);
+    console.warn('Project saved on this device but could not sync to Supabase:', e);
   }
 }
 
-async function deleteSavedProject(id){
-  if (!supabaseClient || !supabaseUser) return;
+async function deleteSavedProject(row){
+  savedProjects = savedProjects.filter(p => p !== row);
+  setLocalSavedProjects(savedProjects);
+  renderSavedProjects();
+  setLoaderMsg('Project deleted.', true);
+
+  if (!row.id || !supabaseClient || !supabaseUser) return;
 
   try{
     const { error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
       .delete()
       .eq('user_id', supabaseUser.id)
-      .eq('id', id);
+      .eq('id', row.id);
 
     if (error) throw error;
-
-    savedProjects = savedProjects.filter(p => p.id !== id);
-    renderSavedProjects();
-    setLoaderMsg('Project deleted.', true);
   }catch(e){
-    setLoaderMsg('Could not delete project: ' + (e.message || e), false);
+    console.warn('Project deleted on this device but could not sync deletion to Supabase:', e);
   }
 }
 
-async function renameSavedProject(id){
-  if (!supabaseClient || !supabaseUser) return;
-
-  const row = savedProjects.find(p => p.id === id);
-  if (!row) return;
-
+async function renameSavedProject(row){
   const currentName = row.paper?.title || `Project ${row.project_number}`;
   const newName = window.prompt('Rename this project:', currentName);
   if (newName === null) return;
@@ -628,25 +654,30 @@ async function renameSavedProject(id){
   }
   if (cleanName === currentName) return;
 
+  row.paper = { ...(row.paper || {}), title: cleanName };
+  setLocalSavedProjects(savedProjects);
+  renderSavedProjects();
+  setLoaderMsg(`Project renamed to "${cleanName}".`, true);
+
+  if (!row.id || !supabaseClient || !supabaseUser) return;
+
   try{
-    const updatedPaper = { ...(row.paper || {}), title: cleanName };
     const { data, error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
-      .update({ paper: updatedPaper })
+      .update({ paper: row.paper })
       .eq('user_id', supabaseUser.id)
-      .eq('id', id)
+      .eq('id', row.id)
       .select('id,user_id,project_number,paper,saved_at')
       .single();
 
     if (error) throw error;
 
-    const index = savedProjects.findIndex(p => p.id === id);
+    const index = savedProjects.findIndex(p => p === row);
     if (index !== -1) savedProjects[index] = data;
+    setLocalSavedProjects(savedProjects);
     renderSavedProjects();
-    setLoaderMsg(`Project renamed to "${cleanName}".`, true);
   }catch(e){
-    console.error('Could not rename project:', e);
-    setLoaderMsg('Could not rename project: ' + (e.message || e), false);
+    console.warn('Project renamed on this device but could not sync rename to Supabase:', e);
   }
 }
 
@@ -704,13 +735,13 @@ function renderSavedProjects(){
     rename.className = 'saved-rename';
     rename.type = 'button';
     rename.textContent = 'Rename';
-    rename.onclick = () => renameSavedProject(row.id);
+    rename.onclick = () => renameSavedProject(row);
 
     const del = document.createElement('button');
     del.className = 'saved-delete';
     del.type = 'button';
     del.textContent = 'Delete';
-    del.onclick = () => deleteSavedProject(row.id);
+    del.onclick = () => deleteSavedProject(row);
 
     actions.appendChild(rename);
     actions.appendChild(del);
@@ -1386,6 +1417,7 @@ document.getElementById('resetBtnBottom').addEventListener('click', resetTest);
     await moveBuiltInPaperToSavedProjects();
   }
   await loadScoreHistory();
+  await loadSavedProjects();
   if (!restoreTestSession()) {
     currentData = [];
     testStarted = false;
