@@ -187,6 +187,16 @@
     text-decoration:underline;
     padding:0;
   }
+  .loader-panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .loader-home-btn{
+    padding:5px 12px;
+    font-size:11px;
+  }
   .loader-body{
     display:none;
     margin-top:12px;

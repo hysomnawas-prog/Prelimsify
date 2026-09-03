@@ -48,7 +48,10 @@
 </div>
 
 <div class="loader-panel">
-  <button class="loader-toggle" onclick="toggleLoader()">Load a question paper ▾</button>
+  <div class="loader-panel-head">
+    <button class="loader-toggle" onclick="toggleLoader()">Load a question paper ▾</button>
+    <button class="btn secondary loader-home-btn" id="loaderHomeBtn" type="button">Home</button>
+  </div>
   <div class="loader-body open" id="loaderBody">
     <label for="jsonInput">Paste question JSON</label>
     <textarea id="jsonInput" placeholder='[{"s":"Section title"},{"q":"Question text","o":{"A":"opt A","B":"opt B","C":"opt C","D":"opt D"},"a":"B"}]'></textarea>

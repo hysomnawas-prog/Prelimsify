@@ -1365,6 +1365,8 @@ function bindZoomControls(){
 bindZoomControls();
 
 document.getElementById('homeBtn').addEventListener('click', showHome);
+const loaderHomeBtn = document.getElementById('loaderHomeBtn');
+if (loaderHomeBtn) loaderHomeBtn.addEventListener('click', showHome);
 document.getElementById('pauseBtn').addEventListener('click', togglePauseTest);
 document.getElementById('resumeTestBtn').addEventListener('click', resumeTest);
 document.getElementById('exitTestBtn').addEventListener('click', exitTestToUploadPage);
