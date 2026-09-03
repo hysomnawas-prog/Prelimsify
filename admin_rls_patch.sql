@@ -38,8 +38,9 @@ set search_path = public
 as $$
 begin
   if not exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
+    select 1 from public.profiles AS admin_profile
+    where admin_profile.id = auth.uid()
+      and admin_profile.role = 'admin'
   ) then
     raise exception 'Only an administrator can manage users';
   end if;
@@ -66,15 +67,17 @@ declare
   target_role text;
 begin
   if not exists (
-    select 1 from public.profiles
-    where id = auth.uid() and role = 'admin'
+    select 1 from public.profiles AS admin_profile
+    where admin_profile.id = auth.uid()
+      and admin_profile.role = 'admin'
   ) then
     raise exception 'Only an administrator can change permissions';
   end if;
 
-  select role into target_role
-  from public.profiles
-  where id = target_user_id;
+  select target_profile.role
+  into target_role
+  from public.profiles AS target_profile
+  where target_profile.id = target_user_id;
 
   if target_role is null then
     raise exception 'User profile not found';
@@ -88,7 +91,7 @@ begin
   update public.profiles
   set can_use_app = new_permission,
       updated_at = now()
-  where id = target_user_id;
+  where public.profiles.id = target_user_id;
 
   return true;
 end;
