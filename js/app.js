@@ -914,8 +914,55 @@ function requireSignedIn(){
 }
 async function loadCurrentProfile(){
   if(!supabaseClient||!supabaseUser)return false;
-  const {data,error}=await supabaseClient.from('profiles').select('id,username,display_name,role,can_use_app').eq('id',supabaseUser.id).single();
-  if(error){ console.warn('Profile load failed:',error); return false; }
+
+  // Normally the database trigger creates this row automatically. If an
+  // older account was created before that trigger existed, repair the
+  // missing profile here so login is not blocked.
+  let {data,error}=await supabaseClient
+    .from('profiles')
+    .select('id,username,display_name,role,can_use_app')
+    .eq('id',supabaseUser.id)
+    .maybeSingle();
+
+  if(error){
+    console.warn('Profile load failed:',error);
+    return false;
+  }
+
+  if(!data){
+    const meta=supabaseUser.user_metadata||{};
+    const username=cleanUsername(meta.username||String(supabaseUser.email||'').split('@')[0]);
+    if(username.length<3){
+      console.warn('Could not determine a valid username for this account.');
+      return false;
+    }
+
+    const {error:insertError}=await supabaseClient.from('profiles').insert({
+      id:supabaseUser.id,
+      username,
+      display_name:username,
+      email:supabaseUser.email||null,
+      role:'student',
+      can_use_app:true
+    });
+
+    if(insertError){
+      console.warn('Profile repair failed:',insertError);
+      return false;
+    }
+
+    ({data,error}=await supabaseClient
+      .from('profiles')
+      .select('id,username,display_name,role,can_use_app')
+      .eq('id',supabaseUser.id)
+      .maybeSingle());
+
+    if(error||!data){
+      console.warn('Profile could not be reloaded after repair:',error);
+      return false;
+    }
+  }
+
   currentProfile=data;
   if(data.can_use_app === false && data.role !== 'admin'){
     await supabaseClient.auth.signOut();
