@@ -1,42 +1,42 @@
-# Prelimsify — Supabase setup
+# Prelimsify — username accounts, shared scoreboard and admin permissions
 
-This project includes `supabase_schema.sql`, which creates the database tables and Row Level Security (RLS) needed to keep each student's data private.
+## 1. Run the database setup
 
-## 1. Run the SQL
+Open **Supabase → SQL Editor**, paste the complete contents of `supabase_schema.sql`, and run it.
 
-1. Open your Supabase project.
-2. Go to **SQL Editor**.
-3. Create a new query.
-4. Paste the complete contents of `supabase_schema.sql`.
-5. Click **Run**.
+The schema adds:
+- username/password accounts backed by Supabase Auth (the password is never stored in this app's database tables)
+- `profiles.username`, `profiles.role`, and `profiles.can_use_app`
+- a shared `scoreboard_entries` view so every permitted user sees the same scoreboard
+- RLS rules so revoked users cannot use saved papers, test history, or active tests
 
-The script is written to be safe to run again: policies/triggers are recreated with `drop ... if exists` and tables use `if not exists`.
+## 2. Username/password authentication
 
-## 2. Google Authentication
+The frontend maps a username to an internal Supabase Auth email such as `alice@users.prelimsify.local`. Users only type their username and password; no real email address is requested.
 
-In **Authentication → Providers → Google**, enable Google and enter the Google OAuth Client ID and Client Secret.
+In **Supabase → Authentication → Providers → Email**, turn **Confirm email** OFF for this username-only flow. Otherwise Supabase will require an email confirmation even though the generated address is not a mailbox the user controls.
 
-Google's authorized redirect URI should be:
+## 3. Create the first administrator
 
-```text
-https://fzwsmvwvraruktyyiscr.supabase.co/auth/v1/callback
+1. Open the site and create the account you want to use as administrator.
+2. In Supabase SQL Editor run:
+
+```sql
+UPDATE public.profiles
+SET role='admin', can_use_app=true
+WHERE username='your_admin_username';
 ```
 
-In **Authentication → URL Configuration**, set your production website as the Site URL and add your development/production callback URLs under Redirect URLs.
+3. Open `admin.html` while logged into that account.
 
-## 3. Tables created
+The Admin branch can list usernames and **grant/revoke app permission**. Passwords are shown only as masked placeholders because Supabase Auth never exposes plaintext passwords to the administrator.
 
-- `profiles` — one profile per authenticated student.
-- `quiz_projects` — saved question sets, owned by a student.
-- `test_history` — completed-test grade history, owned by a student.
-- `active_tests` — one resumable unfinished test per student.
+## 4. Scoreboard behaviour
 
-## 4. Privacy
+Completed tests are saved in `test_history` with the exact saved-project title. The Score Board reads the shared `scoreboard_entries` view and displays the username beside each score, so different users' results remain in one continuous scoreboard.
 
-RLS is enabled on all four tables. Every policy uses `auth.uid()` so a signed-in student can only read or modify rows belonging to their own account.
+When a saved project is loaded, its saved `paper.title` becomes the active test title. Renaming the current user changes the username shown on future scoreboard entries.
 
-The public/publishable Supabase key may remain in the frontend. **Never put the Supabase service-role/secret key in `js/app.js` or any browser-delivered file.**
+## 5. Security
 
-## Important note about the current frontend
-
-The SQL/RLS setup is the database security layer. Browser `localStorage`/`sessionStorage` data already used by the current app is still browser-local; RLS cannot secure browser storage. To make saved papers, grade history, and unfinished tests cloud-synced across devices, the frontend must call the four tables above using the authenticated Supabase client. The schema is prepared for that integration.
+Never put a Supabase service-role/secret key in browser JavaScript. The publishable key in `index.html`/`js/app.js` is expected for a browser app.

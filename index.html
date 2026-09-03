@@ -15,6 +15,17 @@
   <div class="home-content">
     <h1>prelimsify</h1>
     <p>The Prelims sahchari</p>
+    <div class="account-panel" id="accountPanel">
+      <div class="account-line"><span class="account-label">Account</span><strong id="accountName">Not signed in</strong></div>
+      <div class="account-actions">
+        <button class="btn secondary" id="loginBtn" type="button">Login</button>
+        <button class="btn secondary" id="signupBtn" type="button">Create account</button>
+        <button class="btn secondary" id="renameUserBtn" type="button">Rename</button>
+        <button class="btn secondary" id="logoutBtn" type="button">Logout</button>
+        <a class="btn secondary admin-branch-link" id="adminBranchLink" href="admin.html" style="display:none;">Admin</a>
+      </div>
+    </div>
+
     <button class="btn" id="startTestBtn" type="button">Start Test</button>
 
     <button class="score-board-card" id="scoreBoardBtn" type="button">
@@ -26,6 +37,22 @@
       <span class="sb-count" id="scoreBoardCount">0 tests</span>
     </button>
   </div>
+</div>
+<div class="auth-overlay" id="authOverlay" aria-hidden="true">
+  <section class="auth-card">
+    <button class="icon-btn auth-close" id="authCloseBtn" type="button" aria-label="Close">✕</button>
+    <h2>Prelimsify Account</h2>
+    <p class="auth-help">Use a username and password. No personal email address is required.</p>
+    <form id="authForm">
+      <input type="hidden" id="authMode" value="login">
+      <label>Username<input id="authUsername" autocomplete="username" required maxlength="32" pattern="[A-Za-z0-9_.-]+"></label>
+      <label>Password<input id="authPassword" type="password" autocomplete="current-password" required minlength="6"></label>
+      <input id="authConfirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password" minlength="6" style="display:none;">
+      <button class="btn" id="authSubmitBtn" type="submit">Login</button>
+      <div class="auth-status" id="authStatus"></div>
+      <div class="auth-switch"><span id="authSwitchText">New user?</span> <button type="button" id="authSwitchBtn">Create account</button></div>
+    </form>
+  </section>
 </div>
 
 <div class="history-overlay" id="scoreHistoryOverlay" aria-hidden="true">
