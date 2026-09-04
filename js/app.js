@@ -184,6 +184,50 @@ function changeTextZoom(delta){
   applyTextZoom();
 }
 
+// Trackpad pinch-to-zoom + two-finger panning.
+// Chrome/Firefox/Edge report a trackpad pinch gesture as a `wheel` event
+// with ctrlKey set to true (there's no separate "pinch" event on those
+// browsers — this is also how a real Ctrl+scroll looks, and treating both
+// as "zoom the content" matches what the browser's own page-zoom would
+// otherwise do, so it's the correct call either way). A plain two-finger
+// swipe (no ctrlKey) is left completely alone here so the browser's native
+// panning/scrolling handles it — that's already real trackpad panning.
+//
+// Bound on `document` (not a specific container) so it keeps working no
+// matter where the cursor is — the home screen, the question palette, the
+// results overlay, or the test area — and, crucially, while the app is in
+// native fullscreen: fullscreen never re-parents the DOM, but a listener
+// scoped to a single inner element can miss gestures made elsewhere on
+// screen, which is exactly what fullscreen invites since the whole
+// monitor is now the app.
+function bindTrackpadGestures(){
+  if (document.documentElement.dataset.trackpadBound) return;
+  document.documentElement.dataset.trackpadBound = '1';
+
+  document.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return; // not a pinch — let native two-finger pan/scroll happen
+    e.preventDefault();
+    // Scale deltaY down into a gentle per-tick step instead of jumping by
+    // the full 10% button step on every wheel event, and clamp so a single
+    // fast pinch can't skip past the min/max in one jump.
+    const step = Math.max(-6, Math.min(6, -e.deltaY * 0.5));
+    changeTextZoom(step);
+  }, { passive: false });
+
+  // Safari doesn't emit ctrlKey wheel events for a pinch — it fires its own
+  // non-standard gesture events instead.
+  let gestureStartZoom = 100;
+  document.addEventListener('gesturestart', (e) => {
+    e.preventDefault();
+    gestureStartZoom = getTextZoom();
+  });
+  document.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    changeTextZoom(Math.round(gestureStartZoom * e.scale) - getTextZoom());
+  });
+  document.addEventListener('gestureend', (e) => { e.preventDefault(); });
+}
+
 const SESSION_KEY = 'prelimsify_active_test_v1';
 let restoringSession = false;
 let restoredAnswers = {};
@@ -1581,6 +1625,7 @@ function bindZoomControls(){
 }
 
 bindZoomControls();
+bindTrackpadGestures();
 
 document.getElementById('homeBtn').addEventListener('click', showHome);
 const mastheadHomeBtn = document.getElementById('mastheadHomeBtn');
