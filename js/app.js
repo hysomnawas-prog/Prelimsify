@@ -1,4 +1,3 @@
-
 /* ============================================================
    SUPABASE CONFIG
    Replace ONLY these two values.
@@ -647,13 +646,20 @@ async function deleteSavedProject(row){
   if (!row.id || !supabaseClient || !supabaseUser) return;
 
   try{
-    const { error } = await supabaseClient
+    // Filter by id only. RLS already decides who is allowed to delete which
+    // rows (own projects, or any project if admin). Also filtering by
+    // supabaseUser.id here broke admin deletes of OTHER users' projects:
+    // the WHERE clause matched zero rows, Supabase returned no error, and
+    // the "deleted" project silently came back on the next reload.
+    const { error, count } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
-      .delete()
-      .eq('user_id', supabaseUser.id)
+      .delete({ count: 'exact' })
       .eq('id', row.id);
 
     if (error) throw error;
+    if (!count){
+      console.warn('Delete matched 0 rows in Supabase (RLS denied or already gone) for project id:', row.id);
+    }
   }catch(e){
     console.warn('Project deleted on this device but could not sync deletion to Supabase:', e);
   }
@@ -682,7 +688,6 @@ async function renameSavedProject(row){
     const { data, error } = await supabaseClient
       .from(SAVED_PROJECTS_TABLE)
       .update({ paper: row.paper })
-      .eq('user_id', supabaseUser.id)
       .eq('id', row.id)
       .select('id,user_id,project_number,paper,saved_at')
       .single();
