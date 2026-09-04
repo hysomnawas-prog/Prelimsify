@@ -8,7 +8,15 @@ async function boot(){
   const {data:{session}}=await client.auth.getSession();
   if(!session){location.href='index.html';return;}
   const {data:me,error}=await client.from('profiles').select('id,username,role,can_use_app').eq('id',session.user.id).single();
-  if(error||me?.role!=='admin'){document.body.innerHTML='<main class="admin-page"><div class="admin-wrap"><h1>Access denied</h1><p>Only an administrator can open this page.</p><a class="btn" href="index.html">Back to app</a></div></main>';return;}
+  if(error){
+    console.error('Admin profile lookup failed:', error);
+    document.body.innerHTML='<main class="admin-page"><div class="admin-wrap"><h1>Could not verify admin access</h1><p style="color:#8c1d17">'+esc(error.message||String(error))+'</p><p class="admin-note">Details logged to the browser console too.</p><a class="btn" href="index.html">Back to app</a></div></main>';
+    return;
+  }
+  if(me?.role!=='admin'){
+    document.body.innerHTML='<main class="admin-page"><div class="admin-wrap"><h1>Access denied</h1><p>Only an administrator can open this page. (role on file: '+esc(me?.role||'none')+')</p><a class="btn" href="index.html">Back to app</a></div></main>';
+    return;
+  }
   $('adminIdentity').textContent=`Signed in as ${me.username||'admin'}`;
   await loadUsers();
 }
