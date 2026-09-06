@@ -160,15 +160,18 @@
   .home-content h1{
     grid-column:1 / -1;
     margin:0;
-    font-family:var(--sans);
+    font-family:"Times New Roman", Times, var(--serif);
     font-size:clamp(2.4rem, 4vw + 1rem, 5rem);
     line-height:1.1;
-    letter-spacing:-.03em;
-    font-weight:800;
-    background:linear-gradient(135deg,#1d1d1f 0%, #3a3aa0 55%, #0A84FF 100%);
-    -webkit-background-clip:text;
-    background-clip:text;
-    color:transparent;
+    letter-spacing:-.01em;
+    font-weight:700;
+    /* Sits on the light "liquid glass" panel, so solid black reads cleanly;
+       falls back to white automatically if ever placed on a dark surface. */
+    color:#000;
+    text-shadow:0 1px 0 rgba(255,255,255,.5);
+  }
+  @media (prefers-color-scheme: dark){
+    .home-content h1{ color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.5); }
   }
   .home-content p{
     grid-column:1 / -1;
@@ -196,10 +199,31 @@
 .logged-in-home{
   grid-column:1 / -1;
   width:100%;
-  display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
-  gap:18px;
-  align-items:start;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:20px;
+}
+/* Identity chip: no longer floats absolutely over the hero (that's what was
+   causing the overlap) — it now sits in its own row, right-aligned. */
+.logged-in-home .account-panel{
+  position:static;
+  align-self:flex-end;
+  width:min(300px, 100%);
+  margin:0;
+}
+/* Start Test: a clear, centered call-to-action with its own breathing room
+   so it never crowds the Score Board tile beneath it. */
+.logged-in-home #startTestBtn{
+  align-self:center;
+  width:min(320px, 100%);
+  margin:4px 0 4px;
+  padding:16px 32px;
+  font-size:16px;
+  letter-spacing:.01em;
+}
+.logged-in-home .score-board-card{
+  width:100%;
 }
 
   /* ---- Score board card (home page) — bento tile ---- */
