@@ -1,4 +1,4 @@
--- PRELIMSIFY ADMIN ACCESS PATCH
+-- civils prime ADMIN ACCESS PATCH
 -- Run this once in Supabase SQL Editor.
 -- It fixes admin.html access without exposing service_role credentials.
 

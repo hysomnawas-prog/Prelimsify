@@ -1,8 +1,8 @@
--- Prelimsify accounts, shared scoreboard, saved papers and admin permissions.
+-- civils prime accounts, shared scoreboard, saved papers and admin permissions.
 -- Run in Supabase SQL Editor. Safe to run repeatedly.
 create extension if not exists pgcrypto;
 
--- Make the profile schema compatible with both fresh and older Prelimsify projects.
+-- Make the profile schema compatible with both fresh and older civils prime projects.
 alter table public.profiles add column if not exists display_name text;
 alter table public.profiles add column if not exists avatar_url text;
 alter table public.profiles add column if not exists email text;
