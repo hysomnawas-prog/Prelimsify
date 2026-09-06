@@ -1,4 +1,22 @@
 <!doctype html>
 <html lang="en"><head><script src="js/no-inspect.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prelimsify Admin</title><link rel="manifest" href="manifest.json"><meta name="theme-color" content="#000000"><link rel="icon" href="icons/icon-192.png"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png"><link rel="stylesheet" href="css/styles.css?v=20260903"><style>
-.admin-page{min-height:100vh;background:#fff;padding:28px 18px;font-family:var(--sans)}.admin-wrap{max-width:1000px;margin:auto}.admin-head{display:flex;justify-content:space-between;align-items:center;gap:15px;border-bottom:2px solid #000;padding-bottom:15px}.admin-head h1{font-family:var(--serif);margin:0}.admin-note{font-size:12px;color:var(--ink-soft);margin:15px 0}.admin-table{width:100%;border-collapse:collapse;font-size:12px}.admin-table th,.admin-table td{padding:11px 9px;border-bottom:1px solid #ddd;text-align:left}.admin-table th{font-size:11px;text-transform:uppercase;letter-spacing:.05em}.permission-btn{border:1px solid #999;background:#fff;border-radius:4px;padding:6px 9px;font:700 11px var(--sans);cursor:pointer}.permission-btn.revoke{color:#8c1d17}.permission-btn.grant{color:#155a20}.admin-status{min-height:18px;font-size:12px;margin:10px 0}.admin-error{color:#8c1d17}.admin-ok{color:#155a20}.admin-loading{text-align:center;padding:30px;color:#555}@media(max-width:700px){.admin-table{font-size:11px}.admin-table th:nth-child(3),.admin-table td:nth-child(3){display:none}.admin-head{align-items:flex-start;flex-direction:column}}
+.admin-page{min-height:100vh;background:transparent;padding:48px 20px;font-family:var(--sans)}
+.admin-wrap{max-width:1040px;margin:auto;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur-lg);backdrop-filter:var(--glass-blur-lg);border:1px solid var(--glass-border);border-radius:var(--r-xl);box-shadow:var(--glass-shadow-lg);padding:clamp(20px,3vw,36px)}
+.admin-head{display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;border-bottom:1px solid var(--rule-light);padding-bottom:18px}
+.admin-head h1{font-family:var(--serif);margin:0;font-size:clamp(22px,1.4vw+16px,28px)}
+.admin-note{font-size:12px;color:var(--ink-soft);margin:15px 0}
+.admin-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;margin-top:8px}
+.admin-table th,.admin-table td{padding:13px 12px;border-bottom:1px solid var(--rule-light);text-align:left}
+.admin-table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.admin-table tbody tr{transition:background var(--spring-fast)}
+.admin-table tbody tr:hover{background:rgba(255,255,255,.35)}
+.permission-btn{border:1px solid var(--glass-border-strong);background:rgba(255,255,255,.55);border-radius:var(--r-pill);padding:7px 12px;font:700 11px var(--sans);cursor:pointer;transition:transform var(--spring-fast),background var(--spring-fast)}
+.permission-btn:hover{transform:scale(1.05);background:rgba(255,255,255,.85)}
+.permission-btn.revoke{color:#8c1d17}
+.permission-btn.grant{color:#155a20}
+.admin-status{min-height:18px;font-size:12px;margin:10px 0}
+.admin-error{color:#8c1d17}
+.admin-ok{color:#155a20}
+.admin-loading{text-align:center;padding:30px;color:#555}
+@media(max-width:700px){.admin-table{font-size:11px}.admin-table th:nth-child(3),.admin-table td:nth-child(3){display:none}.admin-head{align-items:flex-start;flex-direction:column}}
 </style></head><body><main class="admin-page"><div class="admin-wrap"><header class="admin-head"><div><h1>Prelimsify Admin</h1><div id="adminIdentity" class="admin-note"></div></div><div><a class="btn secondary" href="index.html">Back to app</a> <button class="btn secondary" id="adminLogout">Logout</button></div></header><div id="adminStatus" class="admin-status"></div><p class="admin-note">Grant/revoke access for user accounts. Passwords are intentionally not displayed: Supabase Auth stores passwords securely and never exposes them to the browser or administrator.</p><table class="admin-table"><thead><tr><th>Username</th><th>Role</th><th>Password</th><th>Permission</th><th>Action</th></tr></thead><tbody id="adminUsers"><tr><td colspan="5" class="admin-loading">Checking administrator access…</td></tr></tbody></table></div></main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="js/admin.js?v=20260903"></script></body></html>
