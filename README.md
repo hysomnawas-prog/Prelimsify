@@ -35,7 +35,8 @@ way.
 Browser (GitHub Pages, static files only)
    ├─ index.html + js/app.js      → main app
    ├─ admin.html + js/admin.js    → admin console
-   ├─ css/styles.css              → shared styling (black/white theme)
+   ├─ css/styles.css              → shared styling ("Liquid Glass" design system)
+   ├─ js/no-inspect.js            → right-click / DevTools-shortcut deterrent
    ├─ manifest.json + sw.js       → PWA installability
    └─ Supabase JS client (CDN)    → all data calls
              │
@@ -118,8 +119,8 @@ raw `select` access to `test_history` rows they don't own.
   (this is expected behaviour, not a bug — see §5.4 below).
 - **Save-then-sync writes.** Saving a project writes to `localStorage`
   first (instant UI feedback), then pushes to Supabase in the background.
-- **Black/white minimalist theme**, one `css/styles.css` file, no CSS
-  framework.
+- **"Liquid Glass" design system** (see §9) — one `css/styles.css` file, no
+  CSS framework, no build step.
 - **No build step.** Plain HTML/CSS/JS, loaded via `<script>` tags — easy
   to deploy straight to GitHub Pages with no bundler/compiler.
 
@@ -217,6 +218,31 @@ scoreboard code). It isn't served by GitHub Pages as long as the site's
 source is the repo root, but it's a trap for accidentally editing the
 wrong copy — worth deleting.
 
+### 5.6 Issue: Saved Projects / Score History / Question Palette blink or flicker on hover
+
+**Symptom:** hovering (or tapping, on touch devices that fire a hover
+event) over a row in the Saved Projects list, a row in Score History, or a
+button in the Question Palette caused a thick horizontal scrollbar-like bar
+to flash in and out rapidly — visually reads as blinking/glitching.
+
+**Root cause:** the hover states on `.saved-item`, `.palette-btn`, and
+`.question-control` apply a `transform: scale(...) translateY(...)` "lift"
+effect (part of the §9 redesign's spring-physics hover language). Their
+scroll containers — `.saved-list`, `.score-history-list`,
+`.question-palette` — had `overflow: auto`, which applies to **both**
+axes. On hover, the scaled-up element became a fraction of a pixel wider
+than its container, which triggered a horizontal scrollbar. The
+scrollbar's appearance nudged the available width, which un-hovered the
+element, which removed the scrollbar, which re-hovered it — a fast
+hover/scrollbar feedback loop that reads as flicker/blinking to the user.
+
+**Fix:** changed all three containers from `overflow: auto` to
+`overflow-y: auto; overflow-x: hidden;` — vertical scrolling still works
+exactly as before, but horizontal overflow (and the scrollbar it would
+have spawned) is now clipped instead of rendered. This is the general fix
+for this failure mode: any scroll container whose children have a hover
+`transform` should never leave `overflow-x` on `auto`.
+
 ---
 
 ## 6. Turning it into an installable app (PWA)
@@ -256,9 +282,10 @@ manifest.json          PWA manifest
 sw.js                   Service worker (network-first)
 offline.html            PWA offline fallback page
 icons/                   PWA icon set
-css/styles.css           All page styling
+css/styles.css           All page styling ("Liquid Glass" design system, §9)
 js/app.js                Main app logic + Supabase calls
 js/admin.js               Admin console logic
+js/no-inspect.js          Right-click / DevTools-shortcut deterrent (§10)
 assets/images/             Static images (pass/fail/scoreboard icons)
 supabase_schema.sql         Base schema: profiles, quiz_projects, test_history,
                              scoreboard_entries view, RLS, helper functions
@@ -293,7 +320,125 @@ SUPABASE_SETUP.md              Original setup notes (auth config, first-admin SQ
 
 ---
 
-## 9. Known trade-offs / things to keep in mind
+## 9. UI/UX refresh — "Liquid Glass" design system (2026)
+
+The frontend was restyled to a premium, macOS/iOS-2026-inspired look —
+bento-grid layouts, frosted glassmorphism, and spring-physics hover
+motion — without touching any markup IDs/classes that `app.js`/`admin.js`
+query, so the redesign is purely visual/CSS.
+
+### 9.1 Design tokens (`css/styles.css` `:root`)
+- **Glass surfaces:** `--glass-bg` / `--glass-bg-strong` / `--glass-bg-soft`
+  (translucent whites at different opacities), `--glass-border` /
+  `--glass-border-strong` (hairline borders), `--glass-blur` /
+  `--glass-blur-lg` (`backdrop-filter: blur(20–28px) saturate(180–190%)`),
+  `--glass-shadow` / `--glass-shadow-lg` (soft ambient drop shadows with a
+  1px inset highlight to fake a glass edge).
+- **Radii:** `--r-pill` (999px, buttons/dock/badges), `--r-sm` (12px,
+  inputs/chips), `--r-md` (16px), `--r-lg` (24px, panels/cards), `--r-xl`
+  (28px, hero/overlay cards).
+- **Motion:** `--spring` = `cubic-bezier(0.25, 1, 0.5, 1)`, used for every
+  hover/press transition (`--spring-fast` .32s, `--spring-slow` .5s).
+- **Accents:** `--accent` (#0A84FF, Apple blue), `--accent-2` (#5E5CE6,
+  indigo), `--accent-3` (#FF375F, pink) — used sparingly (progress bar
+  fill, palette "not visited" state, focus outline).
+- **Type:** `--sans` now uses the system font stack
+  (`-apple-system, BlinkMacSystemFont, "SF Pro Display"/"SF Pro Text",
+  Segoe UI, Roboto...`) instead of Arial/Helvetica; `--serif` is
+  `"New York", "Iowan Old Style", Georgia, "Times New Roman", Times, serif`
+  for the exam-paper question text. The homepage's **`prelimsify` wordmark
+  is set explicitly in Times New Roman** (`font-family: "Times New Roman",
+  Times, var(--serif)`), solid black on the light glass background, with a
+  `prefers-color-scheme: dark` fallback to white if it's ever placed on a
+  dark surface.
+
+### 9.2 Backdrop
+`body` has a fixed, non-scrolling mesh gradient (stacked `radial-gradient`
+blooms in indigo/blue/pink/green over a soft base gradient,
+`background-attachment: fixed`) instead of the old flat grey. This exists
+specifically so the glass panels have something colorful behind them to
+blur/refract — flat glass on a flat background doesn't read as "glass" at
+all.
+
+### 9.3 Bento grid layouts
+- **Home screen (`.home-content`):** `display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));` — the
+  hero, tagline, auth buttons, and (once logged in) the account chip /
+  Start Test button / Score Board card arrange themselves into
+  responsive dashboard tiles instead of one stacked column.
+- **Logged-in home (`.logged-in-home`):** originally also a bento grid,
+  but that put the account chip (`.account-panel`, historically
+  `position: absolute` in the top-right corner) on a collision course
+  with the Start Test button — see the alignment fix below. It's now a
+  simple centered flex column: account chip (right-aligned, own row) →
+  Start Test (centered CTA, fixed comfortable width, generous margin) →
+  Score Board card (full width). This was a direct fix for a reported
+  "Start Test button overlapping/crowded" issue.
+
+### 9.4 Glass panels
+Every card-like surface — `.masthead`, `.loader-panel`, `.container`
+(the question area), `.question-palette`, `.score-board-card`,
+`.saved-item`, `.result-card`, `.pause-card`, `.auth-card`,
+`.score-history`, `.account-panel` — uses the same recipe:
+`background: var(--glass-bg[-strong])`, `backdrop-filter: blur(20px)
+saturate(180%))`, a 1px `rgba(255,255,255,…)` hairline border, and
+`border-radius` from the token scale above, so the whole app reads as one
+consistent material rather than a patchwork of differently-styled boxes.
+
+### 9.5 The "Dock" — `.scorebar`
+The in-test toolbar (timer, marks, Home/Pause/Exit/Reset, zoom controls)
+was turned into a floating, centered, pill-shaped glass dock: `position:
+sticky`, `border-radius: var(--r-pill)`, heavy blur, and every button
+inside it scales up (`transform: scale(1.12) translateY(-2px)`) on
+hover — the closest static-CSS equivalent of the macOS Dock's
+magnification effect.
+
+### 9.6 Spring hover physics
+Interactive elements — `.opt` (answer options), `.score-board-card`,
+`.saved-item`, `.palette-btn`, `.icon-btn`, `.btn`, history rows — lift
+slightly on hover: `transform: scale(1.02–1.14) translateY(-2px to
+-4px)` with the shared `--spring` cubic-bezier, plus a deepened
+box-shadow. `.opt.locked` (an answer already submitted/locked) explicitly
+suppresses the hover transform so reviewed questions don't visually
+"jump."
+
+**Caveat learned the hard way (see §5.6):** any element that scales up on
+hover *inside a scrolling container* must live inside a container with
+`overflow-x: hidden` (not `overflow: auto` on both axes), or the growth
+can trigger a horizontal scrollbar that flickers in and out.
+
+### 9.7 Scope note
+Only the **active** app was restyled — the root `index.html`,
+`admin.html`, `offline.html`, and `css/styles.css`. The stale duplicate
+under the nested `Prelimsify/` folder (see §5.5) still has the old look;
+per the repo-hygiene note it isn't served by GitHub Pages and is a
+candidate for deletion rather than a second design pass.
+
+---
+
+## 10. Right-click / DevTools deterrence (`js/no-inspect.js`)
+
+A small script, loaded first in `<head>` on every page
+(`index.html`, `admin.html`, `offline.html`), that:
+- Calls `e.preventDefault()` on the `contextmenu` event, so right-click
+  doesn't show the browser's menu (which includes "Inspect").
+- Calls `e.preventDefault()` on `keydown` for `F12`,
+  `Ctrl/Cmd+Shift+I` (DevTools), `Ctrl/Cmd+Shift+J` (Console),
+  `Ctrl/Cmd+Shift+C` (Inspect element), and `Ctrl/Cmd+U` (view source).
+
+**Honest limitation, stated plainly because it matters for anyone relying
+on this:** browsers do not expose any API that lets a website truly
+disable DevTools. A user can still open it from the browser's own menu
+(e.g. Chrome's ⋮ → *More tools* → *Developer tools*), so this only
+removes the two most common casual entry points — it is a deterrent, not
+a security boundary. Nothing in this app should depend on the client-side
+JS/HTML actually being hidden from a determined user; the real security
+boundary is (and must remain) Postgres RLS on the Supabase side (§3), not
+this script.
+
+---
+
+## 11. Known trade-offs / things to keep in mind
 
 - No build tooling means every fix has to be hand-edited directly into
   `js/app.js` / `js/admin.js` — fine at this size, but worth watching if
